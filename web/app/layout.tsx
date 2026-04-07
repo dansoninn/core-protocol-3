@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
+import { createClient } from "@/lib/supabase/server";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -10,15 +11,20 @@ export const metadata: Metadata = {
   description: "Veldu markmið þitt og við finnum námskeið fyrir þig.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <html lang="is">
       <body className={`${inter.className} bg-zinc-50 text-zinc-900 min-h-screen`}>
-        <Navbar />
+        <Navbar userEmail={user?.email ?? null} />
         {children}
       </body>
     </html>
