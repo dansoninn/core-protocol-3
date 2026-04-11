@@ -9,6 +9,7 @@ import {
   toggleDayComplete,
 } from "@/lib/storage";
 import VideoPlayer from "@/components/VideoPlayer";
+import ExerciseVideoModal from "@/components/ExerciseVideoModal";
 
 interface Props {
   course: Course;
@@ -21,6 +22,7 @@ export default function DayClient({ course, day, weekTitle, exercises }: Props) 
   const [purchased, setPurchased] = useState(false);
   const [complete, setComplete] = useState(false);
   const [checked, setChecked] = useState(false);
+  const [activeExercise, setActiveExercise] = useState<Exercise | null>(null);
 
   useEffect(() => {
     const p = hasPurchased(course.id);
@@ -124,10 +126,10 @@ export default function DayClient({ course, day, weekTitle, exercises }: Props) 
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {exercises.map((ex) => (
-              <Link
+              <button
                 key={ex.id}
-                href={`/exercises#${ex.id}`}
-                className="group bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 flex items-center gap-4 hover:shadow-md hover:-translate-y-0.5 transition-all"
+                onClick={() => setActiveExercise(ex)}
+                className="group bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 flex items-center gap-4 hover:shadow-md hover:-translate-y-0.5 transition-all text-left"
               >
                 <div className="w-10 h-10 bg-zinc-100 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-zinc-200 transition-colors">
                   <svg
@@ -167,10 +169,18 @@ export default function DayClient({ course, day, weekTitle, exercises }: Props) 
                     d="M9 5l7 7-7 7"
                   />
                 </svg>
-              </Link>
+              </button>
             ))}
           </div>
         </section>
+      )}
+
+      {/* Exercise video modal */}
+      {activeExercise && (
+        <ExerciseVideoModal
+          exercise={activeExercise}
+          onClose={() => setActiveExercise(null)}
+        />
       )}
 
       {/* Mark complete */}

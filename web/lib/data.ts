@@ -1,6 +1,72 @@
 import type { Course, Exercise } from "@/types";
 
 export const EXERCISES: Exercise[] = [
+  // ── Standard exercises with real YouTube demo videos ──────────────────────
+  {
+    id: "ex-std-1",
+    name: "Air Squat",
+    category: "Styrkur",
+    description:
+      "A foundational lower-body movement. Keep your chest up, weight in your heels, and squat below parallel.",
+    videoUrl: "https://www.youtube.com/embed/U3HlEF_E9fo",
+  },
+  {
+    id: "ex-std-2",
+    name: "Push-Up",
+    category: "Styrkur",
+    description:
+      "Classic upper-body push exercise targeting chest, shoulders, and triceps. Keep a rigid plank position throughout.",
+    videoUrl: "https://www.youtube.com/embed/Eh00_rniF8E",
+  },
+  {
+    id: "ex-std-3",
+    name: "Plank",
+    category: "Styrkur",
+    description:
+      "Isometric core hold that builds total midline stability. Keep hips level and avoid sagging the lower back.",
+    videoUrl: "https://www.youtube.com/embed/ASdvN_XEl_c",
+  },
+  {
+    id: "ex-std-4",
+    name: "Deadlift",
+    category: "Styrkur",
+    description:
+      "The king of posterior-chain exercises. Hinge at the hips, keep a neutral spine, and drive through the floor.",
+    videoUrl: "https://www.youtube.com/embed/op9kVnSso6Q",
+  },
+  {
+    id: "ex-std-5",
+    name: "Lunge",
+    category: "Styrkur",
+    description:
+      "Unilateral leg exercise that builds quad, glute, and hip-flexor strength while improving balance.",
+    videoUrl: "https://www.youtube.com/embed/L8fvypPrzzs",
+  },
+  {
+    id: "ex-std-6",
+    name: "Pull-Up",
+    category: "Styrkur",
+    description:
+      "Upper-body pulling movement that develops back width and bicep strength using bodyweight.",
+    videoUrl: "https://www.youtube.com/embed/eGo4IYlbE5g",
+  },
+  {
+    id: "ex-std-7",
+    name: "Dumbbell Row",
+    category: "Styrkur",
+    description:
+      "Unilateral back exercise that targets the lats and rhomboids. Brace your core and row the elbow to your hip.",
+    videoUrl: "https://www.youtube.com/embed/roCP6wCXPqo",
+  },
+  {
+    id: "ex-std-8",
+    name: "Glute Bridge",
+    category: "Endurhæfing",
+    description:
+      "Hip-extension movement that activates glutes and hamstrings. Squeeze hard at the top and avoid hyperextending the back.",
+    videoUrl: "https://www.youtube.com/embed/wPM8icPu6H8",
+  },
+  // ── Icelandic exercise library ─────────────────────────────────────────────
   {
     id: "ex-1",
     name: "Kassa kró",

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Exercise } from "@/types";
+import ExerciseVideoModal from "@/components/ExerciseVideoModal";
 
 interface Props {
   exercise: Exercise;
@@ -17,26 +18,21 @@ const categoryColors: Record<string, string> = {
 };
 
 export default function ExerciseCard({ exercise, compact }: Props) {
-  const [playing, setPlaying] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const colorClass =
     categoryColors[exercise.category] || "bg-zinc-100 text-zinc-800";
 
   return (
-    <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-zinc-100">
-      <div className="relative w-full bg-zinc-900" style={{ paddingTop: "56.25%" }}>
-        {playing ? (
-          <video
-            className="absolute inset-0 w-full h-full object-cover"
-            src={exercise.videoUrl}
-            autoPlay
-            controls
-            onEnded={() => setPlaying(false)}
-          />
-        ) : (
-          <button
-            onClick={() => setPlaying(true)}
-            className="absolute inset-0 w-full h-full flex items-center justify-center group"
-          >
+    <>
+      <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-zinc-100">
+        {/* Thumbnail — click opens modal */}
+        <button
+          onClick={() => setModalOpen(true)}
+          className="relative w-full bg-zinc-900 flex items-center justify-center group"
+          style={{ paddingTop: "56.25%" }}
+          aria-label={`Watch ${exercise.name}`}
+        >
+          <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center group-hover:bg-white transition-colors shadow">
               <svg
                 className="w-5 h-5 text-zinc-900 ml-0.5"
@@ -46,22 +42,40 @@ export default function ExerciseCard({ exercise, compact }: Props) {
                 <path d="M6.3 2.841A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
               </svg>
             </div>
-          </button>
-        )}
-      </div>
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-2 mb-1">
-          <h3 className={`font-semibold text-zinc-900 ${compact ? "text-sm" : "text-base"}`}>
-            {exercise.name}
-          </h3>
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${colorClass}`}>
-            {exercise.category}
-          </span>
+          </div>
+        </button>
+
+        <div className="p-4">
+          <div className="flex items-start justify-between gap-2 mb-1">
+            {/* Clickable name opens modal */}
+            <button
+              onClick={() => setModalOpen(true)}
+              className={`font-semibold text-zinc-900 text-left hover:text-zinc-600 transition-colors ${
+                compact ? "text-sm" : "text-base"
+              }`}
+            >
+              {exercise.name}
+            </button>
+            <span
+              className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${colorClass}`}
+            >
+              {exercise.category}
+            </span>
+          </div>
+          {!compact && (
+            <p className="text-sm text-zinc-500 leading-relaxed">
+              {exercise.description}
+            </p>
+          )}
         </div>
-        {!compact && (
-          <p className="text-sm text-zinc-500 leading-relaxed">{exercise.description}</p>
-        )}
       </div>
-    </div>
+
+      {modalOpen && (
+        <ExerciseVideoModal
+          exercise={exercise}
+          onClose={() => setModalOpen(false)}
+        />
+      )}
+    </>
   );
 }
