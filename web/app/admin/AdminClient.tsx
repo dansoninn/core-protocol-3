@@ -62,10 +62,13 @@ const inp =
   "w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500 transition-colors";
 
 const btnPrimary =
-  "bg-white text-zinc-900 text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-zinc-200 transition-colors disabled:opacity-40";
+  "text-zinc-900 text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors disabled:opacity-40 hover:opacity-90";
 
 const btnGhost =
   "bg-zinc-800 border border-zinc-700 text-zinc-300 text-sm font-medium px-4 py-2 rounded-xl hover:bg-zinc-700 transition-colors";
+
+// Admin accent colour — applied inline where Tailwind JIT can't pick up dynamic values
+const ACCENT = "#F5A623";
 
 const CATEGORIES = [
   "Styrkur",
@@ -188,14 +191,14 @@ export default function AdminClient() {
   ];
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="min-h-screen text-zinc-100" style={{ backgroundColor: "#0F1923" }}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-2xl font-extrabold text-zinc-100 tracking-tight">
             Admin Panel
           </h1>
-          <p className="text-zinc-500 text-sm mt-0.5">Core Protocol</p>
+          <p className="text-sm mt-0.5" style={{ color: ACCENT }}>Core Protocol</p>
         </div>
 
         {/* Tab bar */}
@@ -204,11 +207,12 @@ export default function AdminClient() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className="px-5 py-2 rounded-lg text-sm font-medium transition-colors"
+              style={
                 tab === t.id
-                  ? "bg-zinc-700 text-zinc-100 shadow-sm"
-                  : "text-zinc-500 hover:text-zinc-300"
-              }`}
+                  ? { backgroundColor: ACCENT, color: "#0F1923" }
+                  : { color: "#71717a" }
+              }
             >
               {t.label}
             </button>
@@ -311,7 +315,7 @@ function ExercisesTab() {
             Exercises ({exercises.length})
           </h2>
           {!showForm && (
-            <button onClick={() => setShowForm(true)} className={btnPrimary}>
+            <button onClick={() => setShowForm(true)} className={btnPrimary} style={{ backgroundColor: ACCENT }}>
               + Add Exercise
             </button>
           )}
@@ -371,7 +375,7 @@ function ExercisesTab() {
                 />
               </Field>
               <div className="flex items-center gap-3 pt-1">
-                <button type="submit" disabled={saving} className={btnPrimary}>
+                <button type="submit" disabled={saving} className={btnPrimary} style={{ backgroundColor: ACCENT }}>
                   {saving ? "Saving…" : editId ? "Save Changes" : "Add Exercise"}
                 </button>
                 <button type="button" onClick={resetForm} className={btnGhost}>
@@ -472,6 +476,9 @@ function CoursesTab() {
   const [editId, setEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -496,6 +503,8 @@ function CoursesTab() {
       cover_image: c.cover_image ?? "",
       instructor: c.instructor ?? "",
     });
+    setImageFile(null);
+    setImagePreview(null);
     setShowForm(true);
   };
 
@@ -503,17 +512,44 @@ function CoursesTab() {
     setForm(emptyCourse);
     setEditId(null);
     setShowForm(false);
+    setImageFile(null);
+    setImagePreview(null);
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    setImageFile(file);
+    setImagePreview(file ? URL.createObjectURL(file) : null);
+  };
+
+  const uploadImage = async (): Promise<string | null> => {
+    if (!imageFile) return null;
+    setUploading(true);
+    const ext = imageFile.name.split(".").pop();
+    const path = `${Date.now()}.${ext}`;
+    const { error } = await supabase.storage
+      .from("course-images")
+      .upload(path, imageFile, { upsert: true });
+    setUploading(false);
+    if (error) { show("Image upload failed: " + error.message, "error"); return null; }
+    const { data } = supabase.storage.from("course-images").getPublicUrl(path);
+    return data.publicUrl;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+
+    // Upload image first if a file was selected
+    const uploadedUrl = await uploadImage();
+    const payload = uploadedUrl ? { ...form, cover_image: uploadedUrl } : form;
+
     if (editId) {
-      const { error } = await supabase.from("courses").update(form).eq("id", editId);
+      const { error } = await supabase.from("courses").update(payload).eq("id", editId);
       if (error) show(error.message, "error");
       else { show("Course updated"); resetForm(); load(); }
     } else {
-      const { error } = await supabase.from("courses").insert(form);
+      const { error } = await supabase.from("courses").insert(payload);
       if (error) show(error.message, "error");
       else { show("Course added"); resetForm(); load(); }
     }
@@ -535,7 +571,7 @@ function CoursesTab() {
             Courses ({courses.length})
           </h2>
           {!showForm && (
-            <button onClick={() => setShowForm(true)} className={btnPrimary}>
+            <button onClick={() => setShowForm(true)} className={btnPrimary} style={{ backgroundColor: ACCENT }}>
               + Add Course
             </button>
           )}
@@ -602,15 +638,45 @@ function CoursesTab() {
                     ))}
                   </select>
                 </Field>
-                <Field label="Cover Image URL">
-                  <input
-                    value={form.cover_image}
-                    onChange={(e) =>
-                      setForm({ ...form, cover_image: e.target.value })
-                    }
-                    className={inp}
-                    placeholder="https://..."
-                  />
+                <Field label="Cover Image">
+                  <div className="space-y-3">
+                    {/* File upload */}
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <span
+                        className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                        style={{ backgroundColor: ACCENT, color: "#0F1923" }}
+                      >
+                        {uploading ? "Uploading…" : "Choose file"}
+                      </span>
+                      <span className="text-xs text-zinc-500 truncate">
+                        {imageFile ? imageFile.name : "No file chosen"}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageChange}
+                        className="sr-only"
+                      />
+                    </label>
+                    {/* Preview */}
+                    {(imagePreview ?? form.cover_image) && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={imagePreview ?? form.cover_image}
+                        alt="Preview"
+                        className="w-full h-32 object-cover rounded-xl border border-zinc-700"
+                      />
+                    )}
+                    {/* URL fallback */}
+                    <input
+                      value={form.cover_image}
+                      onChange={(e) =>
+                        setForm({ ...form, cover_image: e.target.value })
+                      }
+                      className={inp}
+                      placeholder="Or paste image URL…"
+                    />
+                  </div>
                 </Field>
               </div>
               <Field label="Description">
@@ -624,7 +690,7 @@ function CoursesTab() {
                 />
               </Field>
               <div className="flex items-center gap-3 pt-1">
-                <button type="submit" disabled={saving} className={btnPrimary}>
+                <button type="submit" disabled={saving} className={btnPrimary} style={{ backgroundColor: ACCENT }}>
                   {saving ? "Saving…" : editId ? "Save Changes" : "Add Course"}
                 </button>
                 <button type="button" onClick={resetForm} className={btnGhost}>
@@ -1075,7 +1141,7 @@ function CourseBuilderTab() {
                                     <div className="flex items-center gap-3 pt-1">
                                       <button
                                         onClick={() => saveDay(day.id)}
-                                        className={btnPrimary}
+                                        className={btnPrimary} style={{ backgroundColor: ACCENT }}
                                       >
                                         Save Day
                                       </button>
