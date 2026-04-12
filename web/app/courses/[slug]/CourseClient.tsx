@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import VideoPlayer from "@/components/VideoPlayer";
 import type { DbCourse, DbWeek } from "@/types";
 
 interface Props {
@@ -12,6 +11,8 @@ interface Props {
   weeks: DbWeek[];
   purchased: boolean;
   completedDayIds: string[];
+  blocksCompleted: number;
+  blocksTotal: number;
   userId: string | null;
 }
 
@@ -20,21 +21,16 @@ export default function CourseClient({
   weeks,
   purchased: initialPurchased,
   completedDayIds,
+  blocksCompleted,
+  blocksTotal,
   userId,
 }: Props) {
   const [purchased, setPurchased] = useState(initialPurchased);
   const [buying, setBuying] = useState(false);
   const router = useRouter();
 
-  const allDays = weeks.flatMap((w) => w.days);
-  const totalDays = allDays.length;
-  const completedCount = allDays.filter((d) =>
-    completedDayIds.includes(d.id)
-  ).length;
   const progressPct =
-    totalDays > 0 ? Math.round((completedCount / totalDays) * 100) : 0;
-
-  const freePreviews = allDays.filter((d) => d.is_free_preview);
+    blocksTotal > 0 ? Math.round((blocksCompleted / blocksTotal) * 100) : 0;
 
   const handlePurchase = async () => {
     if (!userId) {
@@ -48,7 +44,6 @@ export default function CourseClient({
       .insert({ user_id: userId, course_id: course.id });
     if (!error) {
       setPurchased(true);
-      // Re-run the server component so the curriculum unlocks server-side too
       router.refresh();
     }
     setBuying(false);
@@ -83,18 +78,18 @@ export default function CourseClient({
       </div>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-10">
-        {/* Purchase card */}
+        {/* Purchase / progress card */}
         <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex-1">
             {course.description && (
               <p className="text-zinc-600 text-sm">{course.description}</p>
             )}
-            {purchased && totalDays > 0 && (
+            {purchased && blocksTotal > 0 && (
               <div className="mt-3">
                 <div className="flex items-center justify-between text-xs text-zinc-500 mb-1">
                   <span>Framvinda</span>
                   <span>
-                    {completedCount}/{totalDays} dagar
+                    {blocksCompleted}/{blocksTotal} · {progressPct}%
                   </span>
                 </div>
                 <div className="h-2 bg-zinc-100 rounded-full overflow-hidden">
@@ -112,11 +107,7 @@ export default function CourseClient({
             </p>
             {purchased ? (
               <span className="text-sm font-semibold text-green-600 flex items-center gap-1">
-                <svg
-                  className="w-4 h-4"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                   <path
                     fillRule="evenodd"
                     d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
@@ -137,37 +128,6 @@ export default function CourseClient({
           </div>
         </div>
 
-        {/* Free previews (only shown before purchase) */}
-        {!purchased && freePreviews.length > 0 && (
-          <section>
-            <h2 className="text-xl font-bold text-zinc-900 mb-4">
-              Ókeypis forskoðun
-            </h2>
-            <div className="space-y-6">
-              {freePreviews.map((day) => (
-                <div
-                  key={day.id}
-                  className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden"
-                >
-                  <div className="p-4 border-b border-zinc-100">
-                    <span className="text-xs font-semibold bg-green-100 text-green-800 px-2.5 py-1 rounded-full">
-                      Ókeypis forskoðun
-                    </span>
-                    <h3 className="font-semibold text-zinc-900 mt-2">
-                      {day.title}
-                    </h3>
-                  </div>
-                  {day.video_url && (
-                    <div className="p-4">
-                      <VideoPlayer url={day.video_url} title={day.title} />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
         {/* Curriculum */}
         {weeks.length > 0 && (
           <section>
@@ -187,13 +147,11 @@ export default function CourseClient({
                   </div>
                   <ul className="divide-y divide-zinc-50">
                     {week.days.map((day) => {
-                      const isFree = day.is_free_preview;
                       const isComplete = completedDayIds.includes(day.id);
-                      const accessible = purchased || isFree;
 
                       return (
                         <li key={day.id}>
-                          {accessible ? (
+                          {purchased ? (
                             <Link
                               href={`/courses/${course.slug}/day/${day.id}`}
                               className="flex items-center gap-3 px-5 py-3.5 hover:bg-zinc-50 transition-colors group"
@@ -228,11 +186,6 @@ export default function CourseClient({
                               >
                                 {day.title}
                               </span>
-                              {isFree && (
-                                <span className="text-xs text-green-700 font-medium bg-green-50 px-2 py-0.5 rounded-full">
-                                  Ókeypis
-                                </span>
-                              )}
                               <svg
                                 className="w-4 h-4 text-zinc-400 group-hover:text-zinc-600"
                                 fill="none"

@@ -17,7 +17,7 @@ interface DbCourse {
 interface PurchaseRow {
   course_id: string;
   courses: DbCourse & {
-    weeks: { days: { id: string }[] }[];
+    weeks: { days: { tasks: { blocks: { id: string }[] }[] }[] }[];
   };
 }
 
@@ -41,41 +41,54 @@ export default async function DashboardPage() {
 
   const displayName = profileRow?.full_name?.trim() || user.email || "";
 
-  // Fetch purchases with nested course → weeks → days for completion tracking
+  // Fetch purchases with nested course → weeks → days → tasks → blocks for completion tracking
   const { data: purchaseRows } = await supabase
     .from("purchases")
     .select(
       `course_id,
        courses (
          id, title, slug, category, price, cover_image, instructor,
-         weeks ( days ( id ) )
+         weeks ( days ( tasks ( blocks ( id ) ) ) )
        )`
     )
     .eq("user_id", user.id);
 
   const purchases = (purchaseRows as unknown as PurchaseRow[]) ?? [];
 
-  // Fetch days the user has marked complete
-  const { data: progressRows } = await supabase
-    .from("progress")
-    .select("day_id")
-    .eq("user_id", user.id)
-    .eq("completed", true);
+  // Collect all block IDs across purchased courses
+  const allBlockIds = purchases.flatMap((p) =>
+    (p.courses.weeks ?? []).flatMap((w) =>
+      w.days.flatMap((d) =>
+        d.tasks.flatMap((t) => t.blocks.map((b) => b.id))
+      )
+    )
+  );
 
-  const completedIds = new Set((progressRows ?? []).map((p) => p.day_id as string));
+  // Fetch completed blocks for this user
+  const completedIds = new Set<string>();
+  if (allBlockIds.length > 0) {
+    const { data: progressRows } = await supabase
+      .from("progress")
+      .select("block_id")
+      .eq("user_id", user.id)
+      .in("block_id", allBlockIds);
+    (progressRows ?? []).forEach((p) => completedIds.add(p.block_id as string));
+  }
 
   // Attach completion numbers to each purchased course
   const purchasedCourses = purchases.map((p) => {
     const course = p.courses;
-    const allDayIds = (course.weeks ?? []).flatMap((w) =>
-      w.days.map((d) => d.id)
+    const courseBlockIds = (course.weeks ?? []).flatMap((w) =>
+      w.days.flatMap((d) =>
+        d.tasks.flatMap((t) => t.blocks.map((b) => b.id))
+      )
     );
-    const completedCount = allDayIds.filter((id) => completedIds.has(id)).length;
+    const completedCount = courseBlockIds.filter((id) => completedIds.has(id)).length;
     const pct =
-      allDayIds.length > 0
-        ? Math.round((completedCount / allDayIds.length) * 100)
+      courseBlockIds.length > 0
+        ? Math.round((completedCount / courseBlockIds.length) * 100)
         : 0;
-    return { ...course, totalDays: allDayIds.length, completedCount, pct };
+    return { ...course, totalDays: courseBlockIds.length, completedCount, pct };
   });
 
   // If no purchases, show the full course catalogue
@@ -157,7 +170,7 @@ export default async function DashboardPage() {
                     <div className="flex justify-between text-xs text-zinc-500 mb-1.5">
                       <span>Framvinda</span>
                       <span>
-                        {course.completedCount}/{course.totalDays} dagar ·{" "}
+                        {course.completedCount}/{course.totalDays} ·{" "}
                         {course.pct}%
                       </span>
                     </div>

@@ -1,5 +1,4 @@
 // Types that match the Supabase database schema (snake_case columns).
-// The old mock-data types (Course, Exercise, DayLesson, Week) have been removed.
 
 export interface DbCourse {
   id: string;
@@ -22,10 +21,27 @@ export interface DbWeek {
 export interface DbDay {
   id: string;
   title: string;
-  video_url: string | null;
-  workout_text: string | null;
-  is_free_preview: boolean;
+  description: string | null;
   order_index: number;
+}
+
+export interface DbTask {
+  id: string;
+  day_id: string;
+  name: string;
+  color: string;
+  order_index: number;
+  blocks: DbBlock[];
+}
+
+export interface DbBlock {
+  id: string;
+  task_id: string;
+  type: "exercise" | "text";
+  order_index: number;
+  exercise_id: string | null;
+  content: string | null;
+  exercises: DbExercise | null;
 }
 
 export interface DbExercise {

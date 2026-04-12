@@ -1,15 +1,12 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { DbExercise } from "@/types";
+import type { DbTask } from "@/types";
 import DayClient from "./DayClient";
 
-// Raw shape returned by the nested Supabase select
 interface DayRow {
   id: string;
   title: string;
-  video_url: string | null;
-  workout_text: string | null;
-  is_free_preview: boolean;
+  description: string | null;
   order_index: number;
   weeks: {
     id: string;
@@ -22,8 +19,27 @@ interface DayRow {
   };
 }
 
-interface DayExerciseRow {
-  exercises: DbExercise | null;
+interface TaskRow {
+  id: string;
+  day_id: string;
+  name: string;
+  color: string;
+  order_index: number;
+  blocks: {
+    id: string;
+    task_id: string;
+    type: "exercise" | "text";
+    order_index: number;
+    exercise_id: string | null;
+    content: string | null;
+    exercises: {
+      id: string;
+      name: string;
+      category: string;
+      description: string | null;
+      video_url: string | null;
+    } | null;
+  }[];
 }
 
 export default async function DayPage({
@@ -33,11 +49,11 @@ export default async function DayPage({
 }) {
   const supabase = createClient();
 
-  // ── Fetch day with its week → course chain ────────────────────────────────
+  // ── Fetch day with week → course chain ────────────────────────────────────
   const { data: dayRaw } = await supabase
     .from("days")
     .select(`
-      id, title, video_url, workout_text, is_free_preview, order_index,
+      id, title, description, order_index,
       weeks (
         id, title,
         courses ( id, title, slug )
@@ -49,64 +65,64 @@ export default async function DayPage({
   if (!dayRaw) notFound();
   const dayData = dayRaw as unknown as DayRow;
 
-  // Guard: the slug in the URL must match the course this day belongs to
+  // Guard: slug in URL must match the course this day belongs to
   if (dayData.weeks.courses.slug !== params.slug) notFound();
 
-  // ── Exercises for this day ────────────────────────────────────────────────
-  const { data: deRaw } = await supabase
-    .from("day_exercises")
-    .select("exercises(id, name, category, description, video_url)")
-    .eq("day_id", params.dayId);
-
-  const exercises: DbExercise[] = (
-    (deRaw as unknown as DayExerciseRow[]) ?? []
-  )
-    .map((r) => r.exercises)
-    .filter((e): e is DbExercise => e !== null);
-
-  // ── Access control ────────────────────────────────────────────────────────
+  // ── Auth ──────────────────────────────────────────────────────────────────
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isFree = dayData.is_free_preview;
-
-  // Unauthenticated visitors may only see free-preview days
-  if (!isFree && !user) {
-    redirect(
-      `/auth/login?next=/courses/${params.slug}/day/${params.dayId}`
-    );
+  if (!user) {
+    redirect(`/auth/login?next=/courses/${params.slug}/day/${params.dayId}`);
   }
 
-  let purchased = false;
-  let initialCompleted = false;
+  // ── Purchase check ────────────────────────────────────────────────────────
+  const { data: purchase } = await supabase
+    .from("purchases")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("course_id", dayData.weeks.courses.id)
+    .maybeSingle();
 
-  if (user) {
-    const { data: purchase } = await supabase
-      .from("purchases")
-      .select("id")
+  if (!purchase) {
+    redirect(`/courses/${params.slug}`);
+  }
+
+  // ── Tasks with blocks and exercises ───────────────────────────────────────
+  const { data: tasksRaw } = await supabase
+    .from("tasks")
+    .select(`
+      id, day_id, name, color, order_index,
+      blocks(
+        id, task_id, type, order_index, exercise_id, content,
+        exercises(id, name, category, description, video_url)
+      )
+    `)
+    .eq("day_id", params.dayId)
+    .order("order_index");
+
+  const tasks: DbTask[] = ((tasksRaw as unknown as TaskRow[]) ?? []).map(
+    (t) => ({
+      ...t,
+      blocks: [...(t.blocks ?? [])].sort(
+        (a, b) => a.order_index - b.order_index
+      ),
+    })
+  );
+
+  // ── Completed block IDs for this day ───────────────────────────────────────
+  const allBlockIds = tasks.flatMap((t) => t.blocks.map((b) => b.id));
+
+  let completedBlockIds: string[] = [];
+  if (allBlockIds.length > 0) {
+    const { data: progress } = await supabase
+      .from("progress")
+      .select("block_id")
       .eq("user_id", user.id)
-      .eq("course_id", dayData.weeks.courses.id)
-      .maybeSingle();
+      .in("block_id", allBlockIds);
 
-    purchased = !!purchase;
-
-    // Paid day with no purchase → bounce to course page
-    if (!isFree && !purchased) {
-      redirect(`/courses/${params.slug}`);
-    }
-
-    // Fetch completion state for the mark-complete button
-    if (isFree || purchased) {
-      const { data: progress } = await supabase
-        .from("progress")
-        .select("completed")
-        .eq("user_id", user.id)
-        .eq("day_id", params.dayId)
-        .maybeSingle();
-
-      initialCompleted = progress?.completed ?? false;
-    }
+    completedBlockIds = (progress ?? []).map((p) => p.block_id as string);
   }
 
   return (
@@ -117,13 +133,11 @@ export default async function DayPage({
       day={{
         id: dayData.id,
         title: dayData.title,
-        video_url: dayData.video_url,
-        workout_text: dayData.workout_text,
-        is_free_preview: dayData.is_free_preview,
+        description: dayData.description,
       }}
-      exercises={exercises}
-      userId={user?.id ?? null}
-      initialCompleted={initialCompleted}
+      tasks={tasks}
+      userId={user.id}
+      initialCompletedBlockIds={completedBlockIds}
     />
   );
 }

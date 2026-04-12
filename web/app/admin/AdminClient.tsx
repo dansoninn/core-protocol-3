@@ -33,19 +33,31 @@ interface DbProfile {
   created_at: string;
 }
 
-interface DayExerciseRow {
-  exercise_id: string;
+interface DbBlock {
+  id: string;
+  task_id: string;
+  type: "exercise" | "text";
+  order_index: number;
+  exercise_id: string | null;
+  content: string | null;
+}
+
+interface DbTask {
+  id: string;
+  day_id: string;
+  name: string;
+  color: string;
+  order_index: number;
+  blocks: DbBlock[];
 }
 
 interface DbDay {
   id: string;
   week_id: string;
   title: string;
-  video_url: string;
-  workout_text: string;
-  is_free_preview: boolean;
+  description: string;
   order_index: number;
-  day_exercises: DayExerciseRow[];
+  tasks: DbTask[];
 }
 
 interface DbWeek {
@@ -803,14 +815,19 @@ function CourseBuilderTab() {
       setLoadingWeeks(true);
       const { data } = await supabase
         .from("weeks")
-        .select("*, days(*, day_exercises(exercise_id))")
+        .select("*, days(*, tasks(*, blocks(*)))")
         .eq("course_id", courseId)
         .order("order_index", { ascending: true });
       const raw = (data as DbWeek[]) ?? [];
-      // Sort days within each week
       const sorted = raw.map((w) => ({
         ...w,
-        days: [...(w.days ?? [])].sort((a, b) => a.order_index - b.order_index),
+        days: [...(w.days ?? [])].sort((a, b) => a.order_index - b.order_index).map((d) => ({
+          ...d,
+          tasks: [...(d.tasks ?? [])].sort((a, b) => a.order_index - b.order_index).map((t) => ({
+            ...t,
+            blocks: [...(t.blocks ?? [])].sort((a, b) => a.order_index - b.order_index),
+          })),
+        })),
       }));
       setWeeks(sorted);
       setLoadingWeeks(false);
@@ -868,9 +885,7 @@ function CourseBuilderTab() {
     const { error } = await supabase.from("days").insert({
       week_id: weekId,
       title: `Day ${weekDaysCount + 1}`,
-      video_url: "",
-      workout_text: "",
-      is_free_preview: false,
+      description: "",
       order_index: weekDaysCount,
     });
     if (error) show(error.message, "error");
@@ -902,36 +917,83 @@ function CourseBuilderTab() {
     else loadWeeks(selectedCourseId);
   };
 
-  const toggleExercise = async (
-    dayId: string,
-    exerciseId: string,
-    currentIds: string[]
-  ) => {
-    if (currentIds.includes(exerciseId)) {
-      await supabase
-        .from("day_exercises")
-        .delete()
-        .eq("day_id", dayId)
-        .eq("exercise_id", exerciseId);
-    } else {
-      await supabase
-        .from("day_exercises")
-        .insert({ day_id: dayId, exercise_id: exerciseId });
-    }
-    loadWeeks(selectedCourseId);
-  };
-
   const startEditDay = (day: DbDay) => {
     setEditingDay(day.id);
     setDayForms((prev) => ({
       ...prev,
       [day.id]: {
         title: day.title,
-        video_url: day.video_url ?? "",
-        workout_text: day.workout_text ?? "",
-        is_free_preview: day.is_free_preview,
+        description: day.description ?? "",
       },
     }));
+  };
+
+  // ── Task operations ──────────────────────────────────────────────────────────
+
+  const addTask = async (dayId: string, taskCount: number) => {
+    const { error } = await supabase.from("tasks").insert({
+      day_id: dayId,
+      name: `Task ${taskCount + 1}`,
+      color: "#F5A623",
+      order_index: taskCount,
+    });
+    if (error) show(error.message, "error");
+    else loadWeeks(selectedCourseId);
+  };
+
+  const deleteTask = async (taskId: string) => {
+    const { error } = await supabase.from("tasks").delete().eq("id", taskId);
+    if (error) show(error.message, "error");
+    else loadWeeks(selectedCourseId);
+  };
+
+  const updateTaskField = async (taskId: string, patch: Partial<Pick<DbTask, "name" | "color">>) => {
+    const { error } = await supabase.from("tasks").update(patch).eq("id", taskId);
+    if (error) show(error.message, "error");
+    else loadWeeks(selectedCourseId);
+  };
+
+  // ── Block operations ─────────────────────────────────────────────────────────
+
+  const addBlock = async (
+    taskId: string,
+    blockCount: number,
+    type: "exercise" | "text",
+    exerciseId?: string
+  ) => {
+    const { error } = await supabase.from("blocks").insert({
+      task_id: taskId,
+      type,
+      order_index: blockCount,
+      exercise_id: exerciseId ?? null,
+      content: type === "text" ? "" : null,
+    });
+    if (error) show(error.message, "error");
+    else loadWeeks(selectedCourseId);
+  };
+
+  const deleteBlock = async (blockId: string) => {
+    const { error } = await supabase.from("blocks").delete().eq("id", blockId);
+    if (error) show(error.message, "error");
+    else loadWeeks(selectedCourseId);
+  };
+
+  const updateBlockContent = async (blockId: string, content: string) => {
+    const { error } = await supabase
+      .from("blocks")
+      .update({ content })
+      .eq("id", blockId);
+    if (error) show(error.message, "error");
+    else loadWeeks(selectedCourseId);
+  };
+
+  const updateBlockExercise = async (blockId: string, exerciseId: string) => {
+    const { error } = await supabase
+      .from("blocks")
+      .update({ exercise_id: exerciseId })
+      .eq("id", blockId);
+    if (error) show(error.message, "error");
+    else loadWeeks(selectedCourseId);
   };
 
   return (
@@ -1025,123 +1087,42 @@ function CourseBuilderTab() {
                           {(week.days ?? []).map((day) => {
                             const isEditing = editingDay === day.id;
                             const f = dayForms[day.id] ?? {};
-                            const exIds = (day.day_exercises ?? []).map(
-                              (de) => de.exercise_id
-                            );
 
                             return (
-                              <div key={day.id} className="px-6 py-4">
+                              <div key={day.id} className="px-6 py-4 space-y-4">
+                                {/* Day header row */}
                                 {isEditing ? (
                                   <div className="space-y-3">
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                      <Field label="Title">
-                                        <input
-                                          value={f.title ?? ""}
-                                          onChange={(e) =>
-                                            setDayForms((prev) => ({
-                                              ...prev,
-                                              [day.id]: {
-                                                ...prev[day.id],
-                                                title: e.target.value,
-                                              },
-                                            }))
-                                          }
-                                          className={inp}
-                                        />
-                                      </Field>
-                                      <Field label="Video URL">
-                                        <input
-                                          value={f.video_url ?? ""}
-                                          onChange={(e) =>
-                                            setDayForms((prev) => ({
-                                              ...prev,
-                                              [day.id]: {
-                                                ...prev[day.id],
-                                                video_url: e.target.value,
-                                              },
-                                            }))
-                                          }
-                                          className={inp}
-                                          placeholder="https://www.youtube.com/embed/..."
-                                        />
-                                      </Field>
-                                    </div>
-                                    <Field label="Workout Text">
-                                      <textarea
-                                        value={f.workout_text ?? ""}
+                                    <Field label="Title">
+                                      <input
+                                        value={f.title ?? ""}
                                         onChange={(e) =>
                                           setDayForms((prev) => ({
                                             ...prev,
-                                            [day.id]: {
-                                              ...prev[day.id],
-                                              workout_text: e.target.value,
-                                            },
+                                            [day.id]: { ...prev[day.id], title: e.target.value },
                                           }))
                                         }
-                                        className={`${inp} h-24 resize-none`}
-                                        placeholder="3 × 10 Air Squats&#10;3 × 8 Push-Ups&#10;…"
+                                        className={inp}
                                       />
                                     </Field>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                      <input
-                                        type="checkbox"
-                                        checked={f.is_free_preview ?? false}
+                                    <Field label="Description">
+                                      <textarea
+                                        value={f.description ?? ""}
                                         onChange={(e) =>
                                           setDayForms((prev) => ({
                                             ...prev,
-                                            [day.id]: {
-                                              ...prev[day.id],
-                                              is_free_preview: e.target.checked,
-                                            },
+                                            [day.id]: { ...prev[day.id], description: e.target.value },
                                           }))
                                         }
-                                        className="rounded border-zinc-600 bg-zinc-800 text-white"
+                                        className={`${inp} h-20 resize-none`}
+                                        placeholder="Intro text shown at the top of this day…"
                                       />
-                                      <span className="text-sm text-zinc-400">
-                                        Free preview
-                                      </span>
-                                    </label>
-                                    <div>
-                                      <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-                                        Exercises
-                                      </p>
-                                      <div className="flex flex-wrap gap-2">
-                                        {exercises.map((ex) => {
-                                          const selected = exIds.includes(
-                                            ex.id
-                                          );
-                                          return (
-                                            <button
-                                              key={ex.id}
-                                              type="button"
-                                              onClick={() =>
-                                                toggleExercise(
-                                                  day.id,
-                                                  ex.id,
-                                                  exIds
-                                                )
-                                              }
-                                              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                                                selected
-                                                  ? "bg-white text-zinc-900 border-white"
-                                                  : "border-zinc-700 text-zinc-400 hover:border-zinc-500"
-                                              }`}
-                                            >
-                                              {ex.name}
-                                            </button>
-                                          );
-                                        })}
-                                        {exercises.length === 0 && (
-                                          <span className="text-xs text-zinc-600">
-                                            Add exercises in the Exercise Bank tab first.
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
+                                    </Field>
                                     <div className="flex items-center gap-3 pt-1">
                                       <button
                                         onClick={() => saveDay(day.id)}
-                                        className={btnPrimary} style={{ backgroundColor: ACCENT }}
+                                        className={btnPrimary}
+                                        style={{ backgroundColor: ACCENT }}
                                       >
                                         Save Day
                                       </button>
@@ -1158,18 +1139,15 @@ function CourseBuilderTab() {
                                     <div>
                                       <p className="text-sm font-semibold text-zinc-100">
                                         {day.title}
-                                        {day.is_free_preview && (
-                                          <span className="ml-2 text-xs font-medium text-emerald-400 bg-emerald-950 border border-emerald-800 px-2 py-0.5 rounded-full">
-                                            Free
-                                          </span>
-                                        )}
                                       </p>
-                                      {exIds.length > 0 && (
-                                        <p className="text-xs text-zinc-500 mt-1">
-                                          {exIds.length} exercise
-                                          {exIds.length !== 1 ? "s" : ""}
+                                      {day.description && (
+                                        <p className="text-xs text-zinc-500 mt-0.5 line-clamp-1">
+                                          {day.description}
                                         </p>
                                       )}
+                                      <p className="text-xs text-zinc-600 mt-1">
+                                        {day.tasks?.length ?? 0} task{(day.tasks?.length ?? 0) !== 1 ? "s" : ""}
+                                      </p>
                                     </div>
                                     <div className="flex items-center gap-4 shrink-0">
                                       <button
@@ -1185,6 +1163,122 @@ function CourseBuilderTab() {
                                     </div>
                                   </div>
                                 )}
+
+                                {/* Tasks */}
+                                <div className="pl-4 space-y-3">
+                                  {(day.tasks ?? []).map((task) => (
+                                    <div
+                                      key={task.id}
+                                      className="bg-zinc-800/60 rounded-xl border border-zinc-700 overflow-hidden"
+                                    >
+                                      {/* Task header */}
+                                      <div className="flex items-center gap-2 px-4 py-2.5">
+                                        <input
+                                          type="color"
+                                          value={task.color}
+                                          onChange={(e) =>
+                                            updateTaskField(task.id, { color: e.target.value })
+                                          }
+                                          className="w-6 h-6 rounded cursor-pointer bg-transparent border-0 p-0"
+                                          title="Task color"
+                                        />
+                                        <input
+                                          defaultValue={task.name}
+                                          onBlur={(e) => {
+                                            if (e.target.value !== task.name)
+                                              updateTaskField(task.id, { name: e.target.value });
+                                          }}
+                                          className="flex-1 bg-transparent text-sm font-medium text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-600 rounded px-1"
+                                        />
+                                        <ConfirmDelete
+                                          label={task.name}
+                                          onConfirm={() => deleteTask(task.id)}
+                                        />
+                                      </div>
+
+                                      {/* Blocks */}
+                                      <div className="divide-y divide-zinc-700/50">
+                                        {(task.blocks ?? []).map((block) => (
+                                          <div
+                                            key={block.id}
+                                            className="flex items-start gap-3 px-4 py-2.5"
+                                          >
+                                            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mt-0.5 w-12 shrink-0">
+                                              {block.type}
+                                            </span>
+                                            {block.type === "exercise" ? (
+                                              <select
+                                                value={block.exercise_id ?? ""}
+                                                onChange={(e) =>
+                                                  updateBlockExercise(block.id, e.target.value)
+                                                }
+                                                className="flex-1 bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none"
+                                              >
+                                                <option value="">— select exercise —</option>
+                                                {exercises.map((ex) => (
+                                                  <option key={ex.id} value={ex.id}>
+                                                    {ex.name} ({ex.category})
+                                                  </option>
+                                                ))}
+                                              </select>
+                                            ) : (
+                                              <textarea
+                                                defaultValue={block.content ?? ""}
+                                                onBlur={(e) => {
+                                                  if (e.target.value !== (block.content ?? ""))
+                                                    updateBlockContent(block.id, e.target.value);
+                                                }}
+                                                className="flex-1 bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 resize-none h-16 focus:outline-none"
+                                                placeholder="Text content…"
+                                              />
+                                            )}
+                                            <ConfirmDelete
+                                              label="block"
+                                              onConfirm={() => deleteBlock(block.id)}
+                                            />
+                                          </div>
+                                        ))}
+                                      </div>
+
+                                      {/* Add block */}
+                                      <div className="flex items-center gap-3 px-4 py-2.5 border-t border-zinc-700/50">
+                                        <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">
+                                          Add block:
+                                        </span>
+                                        <select
+                                          className="bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none"
+                                          defaultValue=""
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            if (!val) return;
+                                            if (val === "text") {
+                                              addBlock(task.id, task.blocks?.length ?? 0, "text");
+                                            } else {
+                                              addBlock(task.id, task.blocks?.length ?? 0, "exercise", val);
+                                            }
+                                            e.target.value = "";
+                                          }}
+                                        >
+                                          <option value="">+ add…</option>
+                                          <option value="text">Text block</option>
+                                          {exercises.map((ex) => (
+                                            <option key={ex.id} value={ex.id}>
+                                              Exercise: {ex.name}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    </div>
+                                  ))}
+
+                                  {/* Add task button */}
+                                  <button
+                                    onClick={() => addTask(day.id, day.tasks?.length ?? 0)}
+                                    className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors font-medium"
+                                  >
+                                    + Add Task
+                                  </button>
+                                </div>
                               </div>
                             );
                           })}

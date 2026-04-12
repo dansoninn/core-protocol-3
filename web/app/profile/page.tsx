@@ -18,13 +18,13 @@ interface PurchaseRow {
     title: string;
     slug: string;
     cover_image: string | null;
-    weeks: { days: { id: string }[] }[];
+    weeks: { days: { tasks: { blocks: { id: string }[] }[] }[] }[];
   };
 }
 
 interface ProgressRow {
-  day_id: string;
-  completed_at: string | null;
+  block_id: string;
+  completed_at: string;
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -54,7 +54,7 @@ export default async function ProfilePage() {
     .select(
       `courses (
         id, title, slug, cover_image,
-        weeks ( days ( id ) )
+        weeks ( days ( tasks ( blocks ( id ) ) ) )
       )`
     )
     .eq("user_id", user.id);
@@ -64,12 +64,11 @@ export default async function ProfilePage() {
   // ── Progress ─────────────────────────────────────────────────────────────
   const { data: progressRaw } = await supabase
     .from("progress")
-    .select("day_id, completed_at")
-    .eq("user_id", user.id)
-    .eq("completed", true);
+    .select("block_id, completed_at")
+    .eq("user_id", user.id);
 
   const progressRows = (progressRaw as ProgressRow[]) ?? [];
-  const completedIds = new Set(progressRows.map((p) => p.day_id));
+  const completedIds = new Set(progressRows.map((p) => p.block_id));
 
   // ── Streak ───────────────────────────────────────────────────────────────
   // Deduplicate to one entry per calendar date, sort descending
@@ -111,15 +110,17 @@ export default async function ProfilePage() {
   // ── Per-course completion ────────────────────────────────────────────────
   const enrolledCourses = purchases.map((p) => {
     const course = p.courses;
-    const allDayIds = (course.weeks ?? []).flatMap((w) =>
-      w.days.map((d) => d.id)
+    const allBlockIds = (course.weeks ?? []).flatMap((w) =>
+      w.days.flatMap((d) =>
+        d.tasks.flatMap((t) => t.blocks.map((b) => b.id))
+      )
     );
-    const completedCount = allDayIds.filter((id) => completedIds.has(id)).length;
+    const completedCount = allBlockIds.filter((id) => completedIds.has(id)).length;
     const pct =
-      allDayIds.length > 0
-        ? Math.round((completedCount / allDayIds.length) * 100)
+      allBlockIds.length > 0
+        ? Math.round((completedCount / allBlockIds.length) * 100)
         : 0;
-    return { ...course, totalDays: allDayIds.length, completedCount, pct };
+    return { ...course, totalDays: allBlockIds.length, completedCount, pct };
   });
 
   // ── Display helpers ──────────────────────────────────────────────────────
