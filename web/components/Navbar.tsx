@@ -40,7 +40,13 @@ export default function Navbar({ userEmail }: Props) {
             <>
               <Link
                 href="/dashboard"
-                className="text-sm text-zinc-300 hover:text-white transition-colors hidden sm:block max-w-[180px] truncate"
+                className="text-sm text-zinc-300 hover:text-white transition-colors hidden sm:block"
+              >
+                Mín námskeið
+              </Link>
+              <Link
+                href="/profile"
+                className="text-sm text-zinc-300 hover:text-white transition-colors hidden sm:block max-w-[160px] truncate"
                 title={userEmail}
               >
                 {userEmail}
