@@ -1,17 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { COURSES } from "@/lib/data";
+import type { DbCourse } from "@/types";
 import FilterButtons from "@/components/FilterButtons";
 import CourseCard from "@/components/CourseCard";
-import type { Category } from "@/types";
 
-export default function HomeClient() {
-  const [selected, setSelected] = useState<Category | null>(null);
+interface Props {
+  courses: DbCourse[];
+  categories: string[];
+}
+
+export default function HomeClient({ courses, categories }: Props) {
+  const [selected, setSelected] = useState<string | null>(null);
 
   const filtered = selected
-    ? COURSES.filter((c) => c.category === selected)
-    : COURSES;
+    ? courses.filter((c) => c.category === selected)
+    : courses;
 
   return (
     <main>
@@ -29,13 +33,22 @@ export default function HomeClient() {
 
       {/* Filter + Grid */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <div className="mb-8">
-          <FilterButtons selected={selected} onChange={setSelected} />
-        </div>
+        {categories.length > 0 && (
+          <div className="mb-8">
+            <FilterButtons
+              categories={categories}
+              selected={selected}
+              onChange={setSelected}
+              allLabel="Öll námskeið"
+            />
+          </div>
+        )}
 
         {filtered.length === 0 ? (
           <p className="text-zinc-500 text-center py-16">
-            Engin námskeið fundust í þessari flokk.
+            {courses.length === 0
+              ? "Engin námskeið í boði eins og er."
+              : "Engin námskeið fundust í þessum flokki."}
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

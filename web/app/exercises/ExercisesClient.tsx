@@ -1,16 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import type { Exercise, Category } from "@/types";
+import type { DbExercise } from "@/types";
 import ExerciseCard from "@/components/ExerciseCard";
-import { EXERCISE_CATEGORIES } from "@/lib/data";
+import FilterButtons from "@/components/FilterButtons";
 
 interface Props {
-  exercises: Exercise[];
+  exercises: DbExercise[];
+  categories: string[];
 }
 
-export default function ExercisesClient({ exercises }: Props) {
-  const [selected, setSelected] = useState<Category | null>(null);
+export default function ExercisesClient({ exercises, categories }: Props) {
+  const [selected, setSelected] = useState<string | null>(null);
 
   const filtered = selected
     ? exercises.filter((e) => e.category === selected)
@@ -19,35 +20,21 @@ export default function ExercisesClient({ exercises }: Props) {
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       <div className="mb-8">
-        <h1 className="text-3xl font-extrabold text-zinc-900 mb-2">Æfingabanki</h1>
-        <p className="text-zinc-500">Skoðaðu allar æfingarnar og lærðu rétta framkvæmd.</p>
+        <h1 className="text-3xl font-extrabold text-zinc-900 mb-2">
+          Æfingabanki
+        </h1>
+        <p className="text-zinc-500">
+          Skoðaðu allar æfingarnar og lærðu rétta framkvæmd.
+        </p>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-2 mb-8">
-        <button
-          onClick={() => setSelected(null)}
-          className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${
-            selected === null
-              ? "bg-zinc-900 text-white border-zinc-900"
-              : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400"
-          }`}
-        >
-          Allt
-        </button>
-        {EXERCISE_CATEGORIES.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setSelected(cat as Category)}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${
-              selected === cat
-                ? "bg-zinc-900 text-white border-zinc-900"
-                : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400"
-            }`}
-          >
-            {cat}
-          </button>
-        ))}
+      <div className="mb-8">
+        <FilterButtons
+          categories={categories}
+          selected={selected}
+          onChange={setSelected}
+          allLabel="Allt"
+        />
       </div>
 
       {filtered.length === 0 ? (

@@ -1,14 +1,18 @@
 "use client";
 
-import { CATEGORIES } from "@/lib/data";
-import type { Category } from "@/types";
-
 interface Props {
-  selected: Category | null;
-  onChange: (cat: Category | null) => void;
+  categories: string[];
+  selected: string | null;
+  onChange: (cat: string | null) => void;
+  allLabel?: string;
 }
 
-export default function FilterButtons({ selected, onChange }: Props) {
+export default function FilterButtons({
+  categories,
+  selected,
+  onChange,
+  allLabel = "Allt",
+}: Props) {
   return (
     <div className="flex flex-wrap gap-2">
       <button
@@ -19,12 +23,12 @@ export default function FilterButtons({ selected, onChange }: Props) {
             : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400"
         }`}
       >
-        Öll námskeið
+        {allLabel}
       </button>
-      {CATEGORIES.map((cat) => (
+      {categories.map((cat) => (
         <button
           key={cat}
-          onClick={() => onChange(cat as Category)}
+          onClick={() => onChange(cat)}
           className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${
             selected === cat
               ? "bg-zinc-900 text-white border-zinc-900"

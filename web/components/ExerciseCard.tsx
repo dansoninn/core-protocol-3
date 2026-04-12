@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import type { Exercise } from "@/types";
+import type { DbExercise } from "@/types";
 import ExerciseVideoModal from "@/components/ExerciseVideoModal";
 
 interface Props {
-  exercise: Exercise;
+  exercise: DbExercise;
   compact?: boolean;
 }
 
@@ -20,7 +20,7 @@ const categoryColors: Record<string, string> = {
 export default function ExerciseCard({ exercise, compact }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const colorClass =
-    categoryColors[exercise.category] || "bg-zinc-100 text-zinc-800";
+    categoryColors[exercise.category] ?? "bg-zinc-100 text-zinc-800";
 
   return (
     <>
@@ -47,7 +47,7 @@ export default function ExerciseCard({ exercise, compact }: Props) {
 
         <div className="p-4">
           <div className="flex items-start justify-between gap-2 mb-1">
-            {/* Clickable name opens modal */}
+            {/* Clickable name also opens modal */}
             <button
               onClick={() => setModalOpen(true)}
               className={`font-semibold text-zinc-900 text-left hover:text-zinc-600 transition-colors ${
@@ -62,7 +62,7 @@ export default function ExerciseCard({ exercise, compact }: Props) {
               {exercise.category}
             </span>
           </div>
-          {!compact && (
+          {!compact && exercise.description && (
             <p className="text-sm text-zinc-500 leading-relaxed">
               {exercise.description}
             </p>

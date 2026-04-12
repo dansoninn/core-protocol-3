@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
-import type { Exercise } from "@/types";
+import type { DbExercise } from "@/types";
 
 interface Props {
-  exercise: Exercise;
+  exercise: DbExercise;
   onClose: () => void;
 }
 
@@ -22,7 +22,6 @@ export default function ExerciseVideoModal({ exercise, onClose }: Props) {
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  // Prevent body scroll while modal is open
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => {
@@ -66,22 +65,33 @@ export default function ExerciseVideoModal({ exercise, onClose }: Props) {
         </div>
 
         {/* Video — swap <iframe> for <video> when migrating to Supabase Storage */}
-        <div className="relative w-full bg-black" style={{ paddingTop: "56.25%" }}>
-          <iframe
-            src={`${exercise.videoUrl}?autoplay=1&rel=0`}
-            className="absolute inset-0 w-full h-full"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            title={exercise.name}
-          />
-        </div>
+        {exercise.video_url ? (
+          <div
+            className="relative w-full bg-black"
+            style={{ paddingTop: "56.25%" }}
+          >
+            <iframe
+              src={`${exercise.video_url}?autoplay=1&rel=0`}
+              className="absolute inset-0 w-full h-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              title={exercise.name}
+            />
+          </div>
+        ) : (
+          <div className="w-full bg-zinc-900 flex items-center justify-center h-48">
+            <p className="text-zinc-500 text-sm">No video available</p>
+          </div>
+        )}
 
         {/* Description */}
-        <div className="px-5 py-4">
-          <p className="text-sm text-zinc-600 leading-relaxed">
-            {exercise.description}
-          </p>
-        </div>
+        {exercise.description && (
+          <div className="px-5 py-4">
+            <p className="text-sm text-zinc-600 leading-relaxed">
+              {exercise.description}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

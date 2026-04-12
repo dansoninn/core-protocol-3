@@ -1,48 +1,37 @@
-export type Category =
-  | "Styrkur"
-  | "Þyngdartap"
-  | "Liðleiki & hreyfigeta"
-  | "Heilsa & endurnæring"
-  | "Endurhæfing";
+// Types that match the Supabase database schema (snake_case columns).
+// The old mock-data types (Course, Exercise, DayLesson, Week) have been removed.
 
-export interface Exercise {
-  id: string;
-  name: string;
-  category: Category;
-  description: string;
-  videoUrl: string;
-}
-
-export interface DayLesson {
+export interface DbCourse {
   id: string;
   title: string;
-  videoUrl: string;
-  workoutText: string;
-  exerciseIds: string[];
-  isFreePreview?: boolean;
-}
-
-export interface Week {
-  id: string;
-  title: string;
-  days: DayLesson[];
-}
-
-export interface Course {
-  id: string;
   slug: string;
-  title: string;
-  instructor: string;
-  description: string;
+  description: string | null;
+  category: string;
   price: number;
-  category: Category;
-  coverImage: string;
-  weeks: Week[];
+  cover_image: string | null;
+  instructor: string | null;
 }
 
-export interface User {
+export interface DbWeek {
+  id: string;
+  title: string;
+  order_index: number;
+  days: DbDay[];
+}
+
+export interface DbDay {
+  id: string;
+  title: string;
+  video_url: string | null;
+  workout_text: string | null;
+  is_free_preview: boolean;
+  order_index: number;
+}
+
+export interface DbExercise {
   id: string;
   name: string;
-  email: string;
-  purchasedCourses: string[];
+  category: string;
+  description: string | null;
+  video_url: string | null;
 }

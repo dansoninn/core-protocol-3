@@ -6,20 +6,23 @@ interface Props {
 }
 
 export default function VideoPlayer({ url, title }: Props) {
-  // Detect YouTube
   const isYouTube =
     url.includes("youtube.com") || url.includes("youtu.be");
 
   if (isYouTube) {
-    const videoId = url.includes("youtu.be")
-      ? url.split("youtu.be/")[1]?.split("?")[0]
-      : new URL(url).searchParams.get("v");
+    // If the URL is already an embed URL, use it directly
+    const embedSrc = url.includes("/embed/")
+      ? url
+      : url.includes("youtu.be/")
+      ? `https://www.youtube.com/embed/${url.split("youtu.be/")[1]?.split("?")[0]}`
+      : `https://www.youtube.com/embed/${new URL(url).searchParams.get("v")}`;
+
     return (
       <div className="relative w-full" style={{ paddingTop: "56.25%" }}>
         <iframe
           className="absolute inset-0 w-full h-full"
-          src={`https://www.youtube.com/embed/${videoId}`}
-          title={title || "Myndband"}
+          src={embedSrc}
+          title={title ?? "Myndband"}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
         />
