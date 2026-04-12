@@ -25,18 +25,38 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh session — keeps the cookie alive without this the user gets
-  // logged out on every server component render.
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protect /dashboard — redirect unauthenticated visitors to login
-  if (!user && request.nextUrl.pathname.startsWith("/dashboard")) {
+  const { pathname } = request.nextUrl;
+
+  // Protect /dashboard
+  if (!user && pathname.startsWith("/dashboard")) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/auth/login";
-    loginUrl.searchParams.set("next", request.nextUrl.pathname);
+    loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // Protect /admin — must be authenticated and have role = 'admin'
+  if (pathname.startsWith("/admin")) {
+    if (!user) {
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = "/auth/login";
+      loginUrl.searchParams.set("next", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile || profile.role !== "admin") {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
   }
 
   return supabaseResponse;
@@ -44,9 +64,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all paths except static files, images, and Next.js internals.
-     */
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
