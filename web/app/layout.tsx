@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
+import BottomNav from "@/components/BottomNav";
 import { createClient } from "@/lib/supabase/server";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -25,7 +26,8 @@ export default async function RootLayout({
     <html lang="is">
       <body className={`${inter.className} bg-zinc-50 text-zinc-900 min-h-screen`}>
         <Navbar userEmail={user?.email ?? null} />
-        {children}
+        <div className="pb-16 md:pb-0">{children}</div>
+        <BottomNav />
       </body>
     </html>
   );
