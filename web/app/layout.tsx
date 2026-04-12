@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
+import Sidebar from "@/components/Sidebar";
 import { createClient } from "@/lib/supabase/server";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -23,20 +24,39 @@ export default async function RootLayout({
   } = await supabase.auth.getUser();
 
   let fullName: string | null = null;
+  let isAdmin = false;
+
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name")
+      .select("full_name, role")
       .eq("id", user.id)
       .single();
     fullName = profile?.full_name ?? null;
+    isAdmin = profile?.role === "admin";
   }
 
   return (
     <html lang="is">
       <body className={`${inter.className} bg-zinc-50 text-zinc-900 min-h-screen`}>
-        <Navbar userEmail={user?.email ?? null} userFullName={fullName} />
-        <div className="pb-16 md:pb-0">{children}</div>
+        {/* Top navbar — mobile only */}
+        <div className="md:hidden">
+          <Navbar userEmail={user?.email ?? null} userFullName={fullName} />
+        </div>
+
+        {/* Desktop sidebar */}
+        <Sidebar
+          userEmail={user?.email ?? null}
+          userFullName={fullName}
+          isAdmin={isAdmin}
+        />
+
+        {/* Main content — offset for sidebar on desktop, padded for bottom nav on mobile */}
+        <div className="md:ml-60 pb-20 md:pb-0">
+          {children}
+        </div>
+
+        {/* Bottom nav — mobile only */}
         <BottomNav />
       </body>
     </html>
