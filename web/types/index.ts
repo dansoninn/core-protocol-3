@@ -31,6 +31,7 @@ export interface DbTask {
   name: string;
   color: string;
   order_index: number;
+  video_url: string | null;
   blocks: DbBlock[];
 }
 
@@ -41,6 +42,9 @@ export interface DbBlock {
   order_index: number;
   exercise_id: string | null;
   content: string | null;
+  sets: string | null;
+  reps: string | null;
+  load: string | null;
   exercises: DbExercise | null;
 }
 

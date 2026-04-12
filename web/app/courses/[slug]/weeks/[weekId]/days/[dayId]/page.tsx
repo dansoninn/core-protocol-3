@@ -8,6 +8,7 @@ interface DayRow {
   title: string;
   description: string | null;
   week_id: string;
+  order_index: number;
   weeks: {
     id: string;
     title: string;
@@ -24,6 +25,7 @@ interface TaskRow {
   day_id: string;
   name: string;
   color: string;
+  video_url: string | null;
   order_index: number;
   blocks: {
     id: string;
@@ -32,6 +34,9 @@ interface TaskRow {
     order_index: number;
     exercise_id: string | null;
     content: string | null;
+    sets: string | null;
+    reps: string | null;
+    load: string | null;
     exercises: {
       id: string;
       name: string;
@@ -53,7 +58,7 @@ export default async function DayPage({
   const { data: dayRaw } = await supabase
     .from("days")
     .select(`
-      id, title, description, week_id,
+      id, title, description, week_id, order_index,
       weeks (
         id, title,
         courses ( id, title, slug )
@@ -65,7 +70,6 @@ export default async function DayPage({
   if (!dayRaw) notFound();
   const dayData = dayRaw as unknown as DayRow;
 
-  // Verify URL params match database
   if (dayData.week_id !== params.weekId) notFound();
   if (dayData.weeks.courses.slug !== params.slug) notFound();
 
@@ -88,17 +92,29 @@ export default async function DayPage({
     .eq("course_id", dayData.weeks.courses.id)
     .maybeSingle();
 
-  if (!purchase) {
-    redirect(`/courses/${params.slug}`);
-  }
+  if (!purchase) redirect(`/courses/${params.slug}`);
+
+  // ── Next day in this week ─────────────────────────────────────────────────
+  const { data: weekDaysRaw } = await supabase
+    .from("days")
+    .select("id, title, order_index")
+    .eq("week_id", params.weekId)
+    .order("order_index");
+
+  const weekDays = weekDaysRaw ?? [];
+  const currentIdx = weekDays.findIndex((d) => d.id === params.dayId);
+  const nextDay =
+    currentIdx >= 0 && currentIdx < weekDays.length - 1
+      ? weekDays[currentIdx + 1]
+      : null;
 
   // ── Tasks with blocks and exercises ───────────────────────────────────────
   const { data: tasksRaw } = await supabase
     .from("tasks")
     .select(`
-      id, day_id, name, color, order_index,
+      id, day_id, name, color, video_url, order_index,
       blocks(
-        id, task_id, type, order_index, exercise_id, content,
+        id, task_id, type, order_index, exercise_id, content, sets, reps, load,
         exercises(id, name, category, description, video_url)
       )
     `)
@@ -134,6 +150,7 @@ export default async function DayPage({
       courseSlug={dayData.weeks.courses.slug}
       courseTitle={dayData.weeks.courses.title}
       weekTitle={dayData.weeks.title}
+      weekId={params.weekId}
       day={{
         id: dayData.id,
         title: dayData.title,
@@ -142,6 +159,7 @@ export default async function DayPage({
       tasks={tasks}
       userId={user.id}
       initialCompletedBlockIds={completedBlockIds}
+      nextDay={nextDay ? { id: nextDay.id, title: nextDay.title } : null}
     />
   );
 }

@@ -40,6 +40,9 @@ interface DbBlock {
   order_index: number;
   exercise_id: string | null;
   content: string | null;
+  sets: string | null;
+  reps: string | null;
+  load: string | null;
 }
 
 interface DbTask {
@@ -48,6 +51,7 @@ interface DbTask {
   name: string;
   color: string;
   order_index: number;
+  video_url: string | null;
   blocks: DbBlock[];
 }
 
@@ -805,6 +809,8 @@ function CourseBuilderTab() {
   const [editingDay, setEditingDay] = useState<string | null>(null);
   const [dayForms, setDayForms] = useState<Record<string, Partial<DbDay>>>({});
   const [showExSelectForTask, setShowExSelectForTask] = useState<string | null>(null);
+  const [exSearchForTask, setExSearchForTask] = useState<Record<string, string>>({});
+  const [taskVideoUploading, setTaskVideoUploading] = useState<Record<string, boolean>>({});
 
   // Load courses and exercises on mount
   useEffect(() => {
@@ -955,7 +961,7 @@ function CourseBuilderTab() {
     else loadWeeks(selectedCourseId);
   };
 
-  const updateTaskField = async (taskId: string, patch: Partial<Pick<DbTask, "name" | "color">>) => {
+  const updateTaskField = async (taskId: string, patch: Partial<Pick<DbTask, "name" | "color" | "video_url">>) => {
     const { error } = await supabase.from("tasks").update(patch).eq("id", taskId);
     if (error) show(error.message, "error");
     else loadWeeks(selectedCourseId);
@@ -1002,6 +1008,31 @@ function CourseBuilderTab() {
       .eq("id", blockId);
     if (error) show(error.message, "error");
     else loadWeeks(selectedCourseId);
+  };
+
+  const updateBlockFields = async (
+    blockId: string,
+    patch: Partial<{ sets: string | null; reps: string | null; load: string | null }>
+  ) => {
+    const { error } = await supabase.from("blocks").update(patch).eq("id", blockId);
+    if (error) show(error.message, "error");
+  };
+
+  const uploadTaskVideo = async (taskId: string, file: File) => {
+    setTaskVideoUploading((prev) => ({ ...prev, [taskId]: true }));
+    const ext = file.name.split(".").pop();
+    const path = `${taskId}-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage
+      .from("task-videos")
+      .upload(path, file, { upsert: true });
+    if (error) {
+      show("Video upload failed: " + error.message, "error");
+    } else {
+      const { data } = supabase.storage.from("task-videos").getPublicUrl(path);
+      await updateTaskField(taskId, { video_url: data.publicUrl });
+      loadWeeks(selectedCourseId);
+    }
+    setTaskVideoUploading((prev) => ({ ...prev, [taskId]: false }));
   };
 
   const moveBlock = async (
@@ -1202,7 +1233,6 @@ function CourseBuilderTab() {
 
                                       {/* Task header */}
                                       <div className="flex items-center gap-3 px-4 py-2.5">
-                                        {/* Preset color swatches */}
                                         <div className="flex items-center gap-1 shrink-0">
                                           {TASK_COLOR_PRESETS.map((c) => (
                                             <button
@@ -1210,7 +1240,6 @@ function CourseBuilderTab() {
                                               onClick={() => updateTaskField(task.id, { color: c })}
                                               className="w-4 h-4 rounded-full transition-transform hover:scale-125 focus:outline-none"
                                               style={{ backgroundColor: c }}
-                                              title={c}
                                               aria-label={`Set color ${c}`}
                                             >
                                               {task.color === c && (
@@ -1235,106 +1264,210 @@ function CourseBuilderTab() {
                                         />
                                       </div>
 
+                                      {/* Task video */}
+                                      <div className="flex items-center gap-2 px-4 py-2 border-t border-zinc-700/40">
+                                        <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider shrink-0 w-10">
+                                          Video
+                                        </span>
+                                        <input
+                                          defaultValue={task.video_url ?? ""}
+                                          onBlur={(e) => {
+                                            const val = e.target.value.trim() || null;
+                                            if (val !== (task.video_url ?? null))
+                                              updateTaskField(task.id, { video_url: val });
+                                          }}
+                                          className="flex-1 bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none"
+                                          placeholder="Paste URL or upload…"
+                                        />
+                                        <label className="cursor-pointer shrink-0">
+                                          <span className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-zinc-700 border border-zinc-600 text-zinc-300 hover:bg-zinc-600 transition-colors whitespace-nowrap">
+                                            {taskVideoUploading[task.id] ? "…" : "Upload"}
+                                          </span>
+                                          <input
+                                            type="file"
+                                            accept="video/*"
+                                            className="sr-only"
+                                            onChange={(e) => {
+                                              const file = e.target.files?.[0];
+                                              if (file) uploadTaskVideo(task.id, file);
+                                            }}
+                                          />
+                                        </label>
+                                      </div>
+
                                       {/* Blocks */}
-                                      <div className="divide-y divide-zinc-700/50">
+                                      <div className="divide-y divide-zinc-700/50 border-t border-zinc-700/40">
                                         {(task.blocks ?? []).map((block, blockIdx) => (
-                                          <div
-                                            key={block.id}
-                                            className="flex items-start gap-2 px-4 py-2.5"
-                                          >
-                                            {/* Up/down arrows */}
-                                            <div className="flex flex-col gap-0.5 shrink-0 pt-0.5">
-                                              <button
-                                                onClick={() => moveBlock(block.id, "up", task.blocks)}
-                                                disabled={blockIdx === 0}
-                                                className="text-zinc-600 hover:text-zinc-300 disabled:opacity-20 transition-colors"
-                                                aria-label="Move up"
-                                              >
-                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                                                </svg>
-                                              </button>
-                                              <button
-                                                onClick={() => moveBlock(block.id, "down", task.blocks)}
-                                                disabled={blockIdx === (task.blocks?.length ?? 1) - 1}
-                                                className="text-zinc-600 hover:text-zinc-300 disabled:opacity-20 transition-colors"
-                                                aria-label="Move down"
-                                              >
-                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                                </svg>
-                                              </button>
+                                          <div key={block.id} className="px-4 py-2.5 space-y-2">
+                                            <div className="flex items-start gap-2">
+                                              {/* Up/down arrows */}
+                                              <div className="flex flex-col gap-0.5 shrink-0 pt-0.5">
+                                                <button
+                                                  onClick={() => moveBlock(block.id, "up", task.blocks)}
+                                                  disabled={blockIdx === 0}
+                                                  className="text-zinc-600 hover:text-zinc-300 disabled:opacity-20 transition-colors"
+                                                  aria-label="Move up"
+                                                >
+                                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                                  </svg>
+                                                </button>
+                                                <button
+                                                  onClick={() => moveBlock(block.id, "down", task.blocks)}
+                                                  disabled={blockIdx === (task.blocks?.length ?? 1) - 1}
+                                                  className="text-zinc-600 hover:text-zinc-300 disabled:opacity-20 transition-colors"
+                                                  aria-label="Move down"
+                                                >
+                                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                  </svg>
+                                                </button>
+                                              </div>
+
+                                              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mt-0.5 w-10 shrink-0">
+                                                {block.type}
+                                              </span>
+
+                                              {block.type === "exercise" ? (
+                                                <select
+                                                  value={block.exercise_id ?? ""}
+                                                  onChange={(e) => updateBlockExercise(block.id, e.target.value)}
+                                                  className="flex-1 bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none"
+                                                >
+                                                  <option value="">— select exercise —</option>
+                                                  {exercises.map((ex) => (
+                                                    <option key={ex.id} value={ex.id}>
+                                                      {ex.name} ({ex.category})
+                                                    </option>
+                                                  ))}
+                                                </select>
+                                              ) : (
+                                                <textarea
+                                                  defaultValue={block.content ?? ""}
+                                                  onBlur={(e) => {
+                                                    if (e.target.value !== (block.content ?? ""))
+                                                      updateBlockContent(block.id, e.target.value);
+                                                  }}
+                                                  className="flex-1 bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 resize-none h-16 focus:outline-none"
+                                                  placeholder="Text content…"
+                                                />
+                                              )}
+                                              <ConfirmDelete
+                                                label="block"
+                                                onConfirm={() => deleteBlock(block.id)}
+                                              />
                                             </div>
 
-                                            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mt-0.5 w-10 shrink-0">
-                                              {block.type}
-                                            </span>
-
-                                            {block.type === "exercise" ? (
-                                              <select
-                                                value={block.exercise_id ?? ""}
-                                                onChange={(e) =>
-                                                  updateBlockExercise(block.id, e.target.value)
-                                                }
-                                                className="flex-1 bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none"
-                                              >
-                                                <option value="">— select exercise —</option>
-                                                {exercises.map((ex) => (
-                                                  <option key={ex.id} value={ex.id}>
-                                                    {ex.name} ({ex.category})
-                                                  </option>
-                                                ))}
-                                              </select>
-                                            ) : (
-                                              <textarea
-                                                defaultValue={block.content ?? ""}
-                                                onBlur={(e) => {
-                                                  if (e.target.value !== (block.content ?? ""))
-                                                    updateBlockContent(block.id, e.target.value);
-                                                }}
-                                                className="flex-1 bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 resize-none h-16 focus:outline-none"
-                                                placeholder="Text content…"
-                                              />
+                                            {/* Sets / Reps / Load (exercise blocks only) */}
+                                            {block.type === "exercise" && (
+                                              <div className="flex gap-1.5 pl-14">
+                                                <input
+                                                  defaultValue={block.sets ?? ""}
+                                                  onBlur={(e) => {
+                                                    const val = e.target.value.trim() || null;
+                                                    if (val !== (block.sets ?? null))
+                                                      updateBlockFields(block.id, { sets: val });
+                                                  }}
+                                                  className="w-16 bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none"
+                                                  placeholder="Sets"
+                                                />
+                                                <input
+                                                  defaultValue={block.reps ?? ""}
+                                                  onBlur={(e) => {
+                                                    const val = e.target.value.trim() || null;
+                                                    if (val !== (block.reps ?? null))
+                                                      updateBlockFields(block.id, { reps: val });
+                                                  }}
+                                                  className="w-16 bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none"
+                                                  placeholder="Reps"
+                                                />
+                                                <input
+                                                  defaultValue={block.load ?? ""}
+                                                  onBlur={(e) => {
+                                                    const val = e.target.value.trim() || null;
+                                                    if (val !== (block.load ?? null))
+                                                      updateBlockFields(block.id, { load: val });
+                                                  }}
+                                                  className="w-20 bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none"
+                                                  placeholder="Load"
+                                                />
+                                              </div>
                                             )}
-                                            <ConfirmDelete
-                                              label="block"
-                                              onConfirm={() => deleteBlock(block.id)}
-                                            />
                                           </div>
                                         ))}
                                       </div>
 
-                                      {/* Add block buttons */}
-                                      <div className="flex items-center gap-3 px-4 py-2.5 border-t border-zinc-700/50">
+                                      {/* Add block — search for exercise or add text */}
+                                      <div className="px-4 py-2.5 border-t border-zinc-700/50">
                                         {showExSelectForTask === task.id ? (
-                                          <>
-                                            <select
+                                          <div className="space-y-2">
+                                            <input
                                               autoFocus
-                                              defaultValue=""
-                                              onChange={(e) => {
-                                                if (e.target.value) {
-                                                  addBlock(task.id, task.blocks?.length ?? 0, "exercise", e.target.value);
-                                                  setShowExSelectForTask(null);
-                                                }
-                                              }}
-                                              className="flex-1 bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none"
-                                            >
-                                              <option value="">— select exercise —</option>
-                                              {exercises.map((ex) => (
-                                                <option key={ex.id} value={ex.id}>
-                                                  {ex.name} ({ex.category})
-                                                </option>
-                                              ))}
-                                            </select>
+                                              type="search"
+                                              value={exSearchForTask[task.id] ?? ""}
+                                              onChange={(e) =>
+                                                setExSearchForTask((prev) => ({
+                                                  ...prev,
+                                                  [task.id]: e.target.value,
+                                                }))
+                                              }
+                                              className="w-full bg-zinc-700 border border-zinc-600 rounded-lg px-3 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-500 focus:outline-none"
+                                              placeholder="Search exercises…"
+                                            />
+                                            <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                                              {(exSearchForTask[task.id]
+                                                ? exercises.filter((ex) =>
+                                                    ex.name
+                                                      .toLowerCase()
+                                                      .includes(
+                                                        (exSearchForTask[task.id] ?? "").toLowerCase()
+                                                      )
+                                                  )
+                                                : exercises
+                                              )
+                                                .slice(0, 24)
+                                                .map((ex) => (
+                                                  <button
+                                                    key={ex.id}
+                                                    onClick={() => {
+                                                      addBlock(
+                                                        task.id,
+                                                        task.blocks?.length ?? 0,
+                                                        "exercise",
+                                                        ex.id
+                                                      );
+                                                      setShowExSelectForTask(null);
+                                                      setExSearchForTask((prev) => ({
+                                                        ...prev,
+                                                        [task.id]: "",
+                                                      }));
+                                                    }}
+                                                    className="text-xs px-2.5 py-1 rounded-full bg-zinc-700 border border-zinc-600 text-zinc-200 hover:bg-zinc-600 hover:border-zinc-500 transition-colors"
+                                                  >
+                                                    {ex.name}
+                                                  </button>
+                                                ))}
+                                              {exercises.length === 0 && (
+                                                <span className="text-xs text-zinc-600">
+                                                  Add exercises in Exercise Bank first.
+                                                </span>
+                                              )}
+                                            </div>
                                             <button
-                                              onClick={() => setShowExSelectForTask(null)}
+                                              onClick={() => {
+                                                setShowExSelectForTask(null);
+                                                setExSearchForTask((prev) => ({
+                                                  ...prev,
+                                                  [task.id]: "",
+                                                }));
+                                              }}
                                               className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
                                             >
                                               Cancel
                                             </button>
-                                          </>
+                                          </div>
                                         ) : (
-                                          <>
+                                          <div className="flex items-center gap-3">
                                             <button
                                               onClick={() => setShowExSelectForTask(task.id)}
                                               className="text-xs text-zinc-500 hover:text-zinc-100 font-medium transition-colors"
@@ -1343,12 +1476,14 @@ function CourseBuilderTab() {
                                             </button>
                                             <span className="text-zinc-700 select-none">|</span>
                                             <button
-                                              onClick={() => addBlock(task.id, task.blocks?.length ?? 0, "text")}
+                                              onClick={() =>
+                                                addBlock(task.id, task.blocks?.length ?? 0, "text")
+                                              }
                                               className="text-xs text-zinc-500 hover:text-zinc-100 font-medium transition-colors"
                                             >
                                               + Text
                                             </button>
-                                          </>
+                                          </div>
                                         )}
                                       </div>
                                     </div>
