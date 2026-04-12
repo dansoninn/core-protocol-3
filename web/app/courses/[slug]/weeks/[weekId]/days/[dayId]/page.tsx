@@ -7,7 +7,7 @@ interface DayRow {
   id: string;
   title: string;
   description: string | null;
-  order_index: number;
+  week_id: string;
   weeks: {
     id: string;
     title: string;
@@ -45,15 +45,15 @@ interface TaskRow {
 export default async function DayPage({
   params,
 }: {
-  params: { slug: string; dayId: string };
+  params: { slug: string; weekId: string; dayId: string };
 }) {
   const supabase = createClient();
 
-  // ── Fetch day with week → course chain ────────────────────────────────────
+  // ── Fetch day with week → course chain ──────────────────────────────────────
   const { data: dayRaw } = await supabase
     .from("days")
     .select(`
-      id, title, description, order_index,
+      id, title, description, week_id,
       weeks (
         id, title,
         courses ( id, title, slug )
@@ -65,7 +65,8 @@ export default async function DayPage({
   if (!dayRaw) notFound();
   const dayData = dayRaw as unknown as DayRow;
 
-  // Guard: slug in URL must match the course this day belongs to
+  // Verify URL params match database
+  if (dayData.week_id !== params.weekId) notFound();
   if (dayData.weeks.courses.slug !== params.slug) notFound();
 
   // ── Auth ──────────────────────────────────────────────────────────────────
@@ -74,7 +75,9 @@ export default async function DayPage({
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect(`/auth/login?next=/courses/${params.slug}/day/${params.dayId}`);
+    redirect(
+      `/auth/login?next=/courses/${params.slug}/weeks/${params.weekId}/days/${params.dayId}`
+    );
   }
 
   // ── Purchase check ────────────────────────────────────────────────────────
@@ -111,17 +114,18 @@ export default async function DayPage({
     })
   );
 
-  // ── Completed block IDs for this day ───────────────────────────────────────
-  const allBlockIds = tasks.flatMap((t) => t.blocks.map((b) => b.id));
+  // ── Completed exercise block IDs ───────────────────────────────────────────
+  const exerciseBlockIds = tasks.flatMap((t) =>
+    t.blocks.filter((b) => b.type === "exercise").map((b) => b.id)
+  );
 
   let completedBlockIds: string[] = [];
-  if (allBlockIds.length > 0) {
+  if (exerciseBlockIds.length > 0) {
     const { data: progress } = await supabase
       .from("progress")
       .select("block_id")
       .eq("user_id", user.id)
-      .in("block_id", allBlockIds);
-
+      .in("block_id", exerciseBlockIds);
     completedBlockIds = (progress ?? []).map((p) => p.block_id as string);
   }
 

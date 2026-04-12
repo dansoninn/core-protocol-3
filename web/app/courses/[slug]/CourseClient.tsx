@@ -153,7 +153,7 @@ export default function CourseClient({
                         <li key={day.id}>
                           {purchased ? (
                             <Link
-                              href={`/courses/${course.slug}/day/${day.id}`}
+                              href={`/courses/${course.slug}/weeks/${week.id}/days/${day.id}`}
                               className="flex items-center gap-3 px-5 py-3.5 hover:bg-zinc-50 transition-colors group"
                             >
                               <div

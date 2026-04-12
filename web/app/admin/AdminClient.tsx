@@ -82,6 +82,15 @@ const btnGhost =
 // Admin accent colour — applied inline where Tailwind JIT can't pick up dynamic values
 const ACCENT = "#F5A623";
 
+const TASK_COLOR_PRESETS = [
+  "#F5A623", // orange
+  "#EF4444", // red
+  "#22C55E", // green
+  "#3B82F6", // blue
+  "#8B5CF6", // purple
+  "#14B8A6", // teal
+];
+
 const CATEGORIES = [
   "Styrkur",
   "Þyngdartap",
@@ -794,9 +803,8 @@ function CourseBuilderTab() {
   const [loadingWeeks, setLoadingWeeks] = useState(false);
   const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
   const [editingDay, setEditingDay] = useState<string | null>(null);
-  const [dayForms, setDayForms] = useState<
-    Record<string, Partial<DbDay>>
-  >({});
+  const [dayForms, setDayForms] = useState<Record<string, Partial<DbDay>>>({});
+  const [showExSelectForTask, setShowExSelectForTask] = useState<string | null>(null);
 
   // Load courses and exercises on mount
   useEffect(() => {
@@ -996,6 +1004,24 @@ function CourseBuilderTab() {
     else loadWeeks(selectedCourseId);
   };
 
+  const moveBlock = async (
+    blockId: string,
+    direction: "up" | "down",
+    sortedBlocks: DbBlock[]
+  ) => {
+    const idx = sortedBlocks.findIndex((b) => b.id === blockId);
+    if (idx < 0) return;
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= sortedBlocks.length) return;
+    const block = sortedBlocks[idx];
+    const other = sortedBlocks[swapIdx];
+    await Promise.all([
+      supabase.from("blocks").update({ order_index: other.order_index }).eq("id", block.id),
+      supabase.from("blocks").update({ order_index: block.order_index }).eq("id", other.id),
+    ]);
+    loadWeeks(selectedCourseId);
+  };
+
   return (
     <>
       {toast && <Toast msg={toast.msg} type={toast.type} />}
@@ -1171,17 +1197,30 @@ function CourseBuilderTab() {
                                       key={task.id}
                                       className="bg-zinc-800/60 rounded-xl border border-zinc-700 overflow-hidden"
                                     >
+                                      {/* Task color bar */}
+                                      <div className="h-1" style={{ backgroundColor: task.color }} />
+
                                       {/* Task header */}
-                                      <div className="flex items-center gap-2 px-4 py-2.5">
-                                        <input
-                                          type="color"
-                                          value={task.color}
-                                          onChange={(e) =>
-                                            updateTaskField(task.id, { color: e.target.value })
-                                          }
-                                          className="w-6 h-6 rounded cursor-pointer bg-transparent border-0 p-0"
-                                          title="Task color"
-                                        />
+                                      <div className="flex items-center gap-3 px-4 py-2.5">
+                                        {/* Preset color swatches */}
+                                        <div className="flex items-center gap-1 shrink-0">
+                                          {TASK_COLOR_PRESETS.map((c) => (
+                                            <button
+                                              key={c}
+                                              onClick={() => updateTaskField(task.id, { color: c })}
+                                              className="w-4 h-4 rounded-full transition-transform hover:scale-125 focus:outline-none"
+                                              style={{ backgroundColor: c }}
+                                              title={c}
+                                              aria-label={`Set color ${c}`}
+                                            >
+                                              {task.color === c && (
+                                                <span className="flex items-center justify-center w-full h-full">
+                                                  <span className="w-1.5 h-1.5 rounded-full bg-white/80" />
+                                                </span>
+                                              )}
+                                            </button>
+                                          ))}
+                                        </div>
                                         <input
                                           defaultValue={task.name}
                                           onBlur={(e) => {
@@ -1198,14 +1237,39 @@ function CourseBuilderTab() {
 
                                       {/* Blocks */}
                                       <div className="divide-y divide-zinc-700/50">
-                                        {(task.blocks ?? []).map((block) => (
+                                        {(task.blocks ?? []).map((block, blockIdx) => (
                                           <div
                                             key={block.id}
-                                            className="flex items-start gap-3 px-4 py-2.5"
+                                            className="flex items-start gap-2 px-4 py-2.5"
                                           >
-                                            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mt-0.5 w-12 shrink-0">
+                                            {/* Up/down arrows */}
+                                            <div className="flex flex-col gap-0.5 shrink-0 pt-0.5">
+                                              <button
+                                                onClick={() => moveBlock(block.id, "up", task.blocks)}
+                                                disabled={blockIdx === 0}
+                                                className="text-zinc-600 hover:text-zinc-300 disabled:opacity-20 transition-colors"
+                                                aria-label="Move up"
+                                              >
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                                </svg>
+                                              </button>
+                                              <button
+                                                onClick={() => moveBlock(block.id, "down", task.blocks)}
+                                                disabled={blockIdx === (task.blocks?.length ?? 1) - 1}
+                                                className="text-zinc-600 hover:text-zinc-300 disabled:opacity-20 transition-colors"
+                                                aria-label="Move down"
+                                              >
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                              </button>
+                                            </div>
+
+                                            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mt-0.5 w-10 shrink-0">
                                               {block.type}
                                             </span>
+
                                             {block.type === "exercise" ? (
                                               <select
                                                 value={block.exercise_id ?? ""}
@@ -1240,33 +1304,52 @@ function CourseBuilderTab() {
                                         ))}
                                       </div>
 
-                                      {/* Add block */}
+                                      {/* Add block buttons */}
                                       <div className="flex items-center gap-3 px-4 py-2.5 border-t border-zinc-700/50">
-                                        <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">
-                                          Add block:
-                                        </span>
-                                        <select
-                                          className="bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none"
-                                          defaultValue=""
-                                          onChange={(e) => {
-                                            const val = e.target.value;
-                                            if (!val) return;
-                                            if (val === "text") {
-                                              addBlock(task.id, task.blocks?.length ?? 0, "text");
-                                            } else {
-                                              addBlock(task.id, task.blocks?.length ?? 0, "exercise", val);
-                                            }
-                                            e.target.value = "";
-                                          }}
-                                        >
-                                          <option value="">+ add…</option>
-                                          <option value="text">Text block</option>
-                                          {exercises.map((ex) => (
-                                            <option key={ex.id} value={ex.id}>
-                                              Exercise: {ex.name}
-                                            </option>
-                                          ))}
-                                        </select>
+                                        {showExSelectForTask === task.id ? (
+                                          <>
+                                            <select
+                                              autoFocus
+                                              defaultValue=""
+                                              onChange={(e) => {
+                                                if (e.target.value) {
+                                                  addBlock(task.id, task.blocks?.length ?? 0, "exercise", e.target.value);
+                                                  setShowExSelectForTask(null);
+                                                }
+                                              }}
+                                              className="flex-1 bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none"
+                                            >
+                                              <option value="">— select exercise —</option>
+                                              {exercises.map((ex) => (
+                                                <option key={ex.id} value={ex.id}>
+                                                  {ex.name} ({ex.category})
+                                                </option>
+                                              ))}
+                                            </select>
+                                            <button
+                                              onClick={() => setShowExSelectForTask(null)}
+                                              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                                            >
+                                              Cancel
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <button
+                                              onClick={() => setShowExSelectForTask(task.id)}
+                                              className="text-xs text-zinc-500 hover:text-zinc-100 font-medium transition-colors"
+                                            >
+                                              + Exercise
+                                            </button>
+                                            <span className="text-zinc-700 select-none">|</span>
+                                            <button
+                                              onClick={() => addBlock(task.id, task.blocks?.length ?? 0, "text")}
+                                              className="text-xs text-zinc-500 hover:text-zinc-100 font-medium transition-colors"
+                                            >
+                                              + Text
+                                            </button>
+                                          </>
+                                        )}
                                       </div>
                                     </div>
                                   ))}
