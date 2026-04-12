@@ -32,7 +32,7 @@ export default function SignupPage() {
 
     setLoading(true);
     const supabase = createClient();
-    const { error: authError } = await supabase.auth.signUp({
+    const { data: signUpData, error: authError } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -45,6 +45,17 @@ export default function SignupPage() {
       setError(authError.message);
       setLoading(false);
       return;
+    }
+
+    // Write full_name directly to profiles table.
+    // The trigger creates the row; we update it here.
+    // If RLS blocks this (email not yet confirmed), the auth callback
+    // will sync full_name from user metadata when the user confirms.
+    if (signUpData.user) {
+      await supabase
+        .from("profiles")
+        .update({ full_name: fullName.trim() })
+        .eq("id", signUpData.user.id);
     }
 
     setDone(true);
