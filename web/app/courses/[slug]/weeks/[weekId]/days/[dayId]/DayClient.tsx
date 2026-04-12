@@ -25,6 +25,62 @@ interface Props {
   nextDay: { id: string; title: string } | null;
 }
 
+function ProgressRing({
+  done,
+  total,
+  color,
+}: {
+  done: number;
+  total: number;
+  color: string;
+}) {
+  if (total === 0) return null;
+  const r = 8;
+  const circ = 2 * Math.PI * r;
+  const complete = done === total;
+
+  if (complete) {
+    return (
+      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+        <circle cx="10" cy="10" r="10" fill={color} />
+        <path
+          d="M6 10.5l3 3 5-5.5"
+          stroke="white"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+      </svg>
+    );
+  }
+
+  const dash = (done / total) * circ;
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      style={{ transform: "rotate(-90deg)" }}
+      aria-hidden="true"
+    >
+      <circle cx="10" cy="10" r={r} fill="none" stroke={color} strokeWidth="2" opacity="0.2" />
+      {done > 0 && (
+        <circle
+          cx="10"
+          cy="10"
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeDasharray={`${dash} ${circ}`}
+          strokeLinecap="round"
+        />
+      )}
+    </svg>
+  );
+}
+
 export default function DayClient({
   courseSlug,
   courseTitle,
@@ -149,26 +205,9 @@ export default function DayClient({
                     {task.name}
                   </span>
                   <div className="flex items-center gap-2 shrink-0">
-                    {taskComplete && (
-                      <svg
-                        className="w-4 h-4"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                        style={{ color: task.color }}
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    )}
-                    {taskTotal > 0 && (
-                      <span
-                        className={`text-xs font-medium tabular-nums ${
-                          taskComplete ? "text-zinc-400" : "text-zinc-400"
-                        }`}
-                      >
+                    <ProgressRing done={taskDone} total={taskTotal} color={task.color} />
+                    {taskTotal > 0 && !taskComplete && (
+                      <span className="text-xs font-medium tabular-nums text-zinc-400">
                         {taskDone}/{taskTotal}
                       </span>
                     )}

@@ -812,6 +812,7 @@ function CourseBuilderTab() {
   const [dayForms, setDayForms] = useState<Record<string, Partial<DbDay>>>({});
   const [showExSelectForTask, setShowExSelectForTask] = useState<string | null>(null);
   const [exSearchForTask, setExSearchForTask] = useState<Record<string, string>>({});
+  const [exBlockSearch, setExBlockSearch] = useState<Record<string, string>>({});
   const [taskVideoUploading, setTaskVideoUploading] = useState<Record<string, boolean>>({});
 
   // Load courses and exercises on mount
@@ -965,14 +966,33 @@ function CourseBuilderTab() {
   // ── Task operations ──────────────────────────────────────────────────────────
 
   const addTask = async (dayId: string, taskCount: number) => {
-    const { error } = await supabase.from("tasks").insert({
-      day_id: dayId,
-      name: `Task ${taskCount + 1}`,
-      color: "#F5A623",
-      order_index: taskCount,
-    });
+    const { data: newTask, error } = await supabase
+      .from("tasks")
+      .insert({
+        day_id: dayId,
+        name: `Task ${taskCount + 1}`,
+        color: "#F5A623",
+        order_index: taskCount,
+      })
+      .select()
+      .single();
     if (error) show(error.message, "error");
-    else loadWeeks(selectedCourseId);
+    else {
+      const task = { ...(newTask as DbTask), blocks: [] };
+      setWeeks((prev) =>
+        prev.map((w) => ({
+          ...w,
+          days: w.days.map((d) =>
+            d.id === dayId ? { ...d, tasks: [...d.tasks, task] } : d
+          ),
+        }))
+      );
+      setExpandedTasks((prev) => {
+        const next = new Set(prev);
+        next.add((newTask as DbTask).id);
+        return next;
+      });
+    }
   };
 
   const deleteTask = async (taskId: string) => {
@@ -1045,6 +1065,93 @@ function CourseBuilderTab() {
       .eq("id", blockId);
     if (error) show(error.message, "error");
     else setBlockInState(blockId, { exercise_id: exerciseId });
+  };
+
+  const clearBlockExercise = async (blockId: string) => {
+    const { error } = await supabase
+      .from("blocks")
+      .update({ exercise_id: null })
+      .eq("id", blockId);
+    if (error) show(error.message, "error");
+    else setBlockInState(blockId, { exercise_id: null });
+  };
+
+  const duplicateDay = async (day: DbDay) => {
+    // Shift all days after this one up by 1
+    const week = weeks.find((w) => w.days.some((d) => d.id === day.id));
+    if (!week) return;
+    const laterDays = week.days.filter((d) => d.order_index > day.order_index);
+    await Promise.all(
+      laterDays.map((d) =>
+        supabase.from("days").update({ order_index: d.order_index + 1 }).eq("id", d.id)
+      )
+    );
+
+    // Insert new day
+    const { data: newDay, error: dayErr } = await supabase
+      .from("days")
+      .insert({
+        week_id: week.id,
+        title: `${day.title} (copy)`,
+        description: day.description ?? "",
+        order_index: day.order_index + 1,
+      })
+      .select()
+      .single();
+    if (dayErr || !newDay) { show(dayErr?.message ?? "Duplicate failed", "error"); return; }
+
+    // Copy tasks and blocks sequentially to preserve order
+    const newTasks: DbTask[] = [];
+    for (const task of (day.tasks ?? [])) {
+      const { data: newTask, error: taskErr } = await supabase
+        .from("tasks")
+        .insert({
+          day_id: (newDay as DbDay).id,
+          name: task.name,
+          color: task.color,
+          order_index: task.order_index,
+          video_url: task.video_url ?? null,
+        })
+        .select()
+        .single();
+      if (taskErr || !newTask) continue;
+
+      const newBlocks: DbBlock[] = [];
+      for (const block of (task.blocks ?? [])) {
+        const { data: newBlock } = await supabase
+          .from("blocks")
+          .insert({
+            task_id: (newTask as DbTask).id,
+            type: block.type,
+            order_index: block.order_index,
+            exercise_id: block.exercise_id ?? null,
+            content: block.content ?? null,
+            sets: block.sets ?? null,
+            reps: block.reps ?? null,
+            load: block.load ?? null,
+          })
+          .select()
+          .single();
+        if (newBlock) newBlocks.push(newBlock as DbBlock);
+      }
+      newTasks.push({ ...(newTask as DbTask), blocks: newBlocks });
+    }
+
+    // Update local state: shift later days, insert duplicated day, re-sort
+    const duplicated: DbDay = { ...(newDay as DbDay), tasks: newTasks };
+    setWeeks((prev) =>
+      prev.map((w) => {
+        if (!w.days.some((d) => d.id === day.id)) return w;
+        return {
+          ...w,
+          days: w.days
+            .map((d) => (d.order_index > day.order_index ? { ...d, order_index: d.order_index + 1 } : d))
+            .concat(duplicated)
+            .sort((a, b) => a.order_index - b.order_index),
+        };
+      })
+    );
+    show("Day duplicated");
   };
 
   const updateBlockFields = async (
@@ -1320,6 +1427,12 @@ function CourseBuilderTab() {
                                       >
                                         Edit
                                       </button>
+                                      <button
+                                        onClick={() => duplicateDay(day)}
+                                        className="text-xs text-zinc-400 hover:text-zinc-100 transition-colors font-medium"
+                                      >
+                                        Duplicate
+                                      </button>
                                       <ConfirmDelete
                                         label={day.title}
                                         onConfirm={() => deleteDay(day.id)}
@@ -1458,18 +1571,59 @@ function CourseBuilderTab() {
                                               </span>
 
                                               {block.type === "exercise" ? (
-                                                <select
-                                                  value={block.exercise_id ?? ""}
-                                                  onChange={(e) => updateBlockExercise(block.id, e.target.value)}
-                                                  className="flex-1 bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none"
-                                                >
-                                                  <option value="">— select exercise —</option>
-                                                  {exercises.map((ex) => (
-                                                    <option key={ex.id} value={ex.id}>
-                                                      {ex.name} ({ex.category})
-                                                    </option>
-                                                  ))}
-                                                </select>
+                                                block.exercise_id && exBlockSearch[block.id] === undefined ? (
+                                                  // Tag: exercise selected, not in search mode
+                                                  <div className="flex-1 flex items-center min-w-0">
+                                                    <span className="inline-flex items-center gap-1 text-xs bg-zinc-600 border border-zinc-500 rounded-full px-2.5 py-0.5 text-zinc-100 min-w-0 max-w-full">
+                                                      <span className="truncate">{exercises.find((e) => e.id === block.exercise_id)?.name ?? "Unknown"}</span>
+                                                      <button
+                                                        onClick={(e) => {
+                                                          e.preventDefault();
+                                                          clearBlockExercise(block.id);
+                                                          setExBlockSearch((prev) => ({ ...prev, [block.id]: "" }));
+                                                        }}
+                                                        className="text-zinc-400 hover:text-white shrink-0 leading-none"
+                                                        aria-label="Clear exercise"
+                                                      >×</button>
+                                                    </span>
+                                                  </div>
+                                                ) : (
+                                                  // Search mode
+                                                  <div className="flex-1 space-y-1 min-w-0">
+                                                    <input
+                                                      type="search"
+                                                      value={exBlockSearch[block.id] ?? ""}
+                                                      onChange={(e) => setExBlockSearch((prev) => ({ ...prev, [block.id]: e.target.value }))}
+                                                      className="w-full bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none"
+                                                      placeholder="Search exercise…"
+                                                    />
+                                                    <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+                                                      {exercises
+                                                        .filter((ex) => {
+                                                          const q = (exBlockSearch[block.id] ?? "").toLowerCase();
+                                                          return !q || ex.name.toLowerCase().includes(q) || ex.category.toLowerCase().includes(q);
+                                                        })
+                                                        .slice(0, 16)
+                                                        .map((ex) => (
+                                                          <button
+                                                            key={ex.id}
+                                                            onClick={(e) => {
+                                                              e.preventDefault();
+                                                              updateBlockExercise(block.id, ex.id);
+                                                              setExBlockSearch((prev) => {
+                                                                const next = { ...prev };
+                                                                delete next[block.id];
+                                                                return next;
+                                                              });
+                                                            }}
+                                                            className="text-xs px-2 py-0.5 rounded-full bg-zinc-700 border border-zinc-600 text-zinc-200 hover:bg-zinc-600 transition-colors"
+                                                          >
+                                                            {ex.name}
+                                                          </button>
+                                                        ))}
+                                                    </div>
+                                                  </div>
+                                                )
                                               ) : (
                                                 <textarea
                                                   defaultValue={block.content ?? ""}
