@@ -122,14 +122,18 @@ export default async function ProfilePage() {
   });
 
   // ── Display helpers ──────────────────────────────────────────────────────
-  const displayName = profile?.full_name || user.email || "";
-  const initials =
-    displayName
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((w) => w[0].toUpperCase())
-      .join("") || "?";
+  const fullName = profile?.full_name?.trim() || null;
+  const email = user.email ?? "";
+
+  // Initials from full_name words (e.g. "Daniel Þórðarson" → "DÞ")
+  const initials = fullName
+    ? fullName
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((w) => w[0].toUpperCase())
+        .join("")
+    : email.slice(0, 1).toUpperCase() || "?";
 
   const memberSince = new Date(
     profile?.created_at ?? user.created_at
@@ -146,7 +150,7 @@ export default async function ProfilePage() {
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={profile.avatar_url}
-              alt={displayName}
+              alt={fullName ?? email}
               className="w-16 h-16 rounded-full object-cover"
             />
           ) : (
@@ -156,8 +160,11 @@ export default async function ProfilePage() {
           )}
           <div>
             <h1 className="text-2xl font-extrabold text-zinc-900 leading-tight">
-              {displayName}
+              {fullName ?? email}
             </h1>
+            {fullName && (
+              <p className="text-sm text-zinc-500 mt-0.5">{email}</p>
+            )}
             <p className="text-sm text-zinc-500 mt-0.5">
               Meðlimur síðan {memberSince}
             </p>

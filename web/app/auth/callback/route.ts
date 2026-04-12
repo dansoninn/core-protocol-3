@@ -8,8 +8,17 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     const supabase = createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error && data.user) {
+      // Sync full_name from auth metadata into profiles (set at signup)
+      const fullName = data.user.user_metadata?.full_name as string | undefined;
+      if (fullName) {
+        await supabase
+          .from("profiles")
+          .update({ full_name: fullName })
+          .eq("id", data.user.id)
+          .is("full_name", null); // only set if not already populated
+      }
       return NextResponse.redirect(`${origin}${next}`);
     }
   }

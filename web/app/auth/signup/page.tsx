@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SignupPage() {
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -16,6 +17,10 @@ export default function SignupPage() {
     e.preventDefault();
     setError("");
 
+    if (!fullName.trim()) {
+      setError("Vinsamlegast sláðu inn fullt nafn.");
+      return;
+    }
     if (password !== confirm) {
       setError("Lykilorðin stemma ekki.");
       return;
@@ -32,6 +37,7 @@ export default function SignupPage() {
       password,
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: { full_name: fullName.trim() },
       },
     });
 
@@ -98,6 +104,21 @@ export default function SignupPage() {
           onSubmit={handleSubmit}
           className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-8 space-y-5"
         >
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+              Fullt nafn
+            </label>
+            <input
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              required
+              autoComplete="name"
+              className="w-full border border-zinc-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 transition"
+              placeholder="Nafn þitt"
+            />
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-zinc-700 mb-1.5">
               Netfang
