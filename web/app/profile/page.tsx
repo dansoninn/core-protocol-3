@@ -122,7 +122,11 @@ export default async function ProfilePage() {
   });
 
   // ── Display helpers ──────────────────────────────────────────────────────
-  const fullName = profile?.full_name?.trim() || null;
+  // Prefer DB value, fall back to auth metadata set at signup
+  const fullName =
+    profile?.full_name?.trim() ||
+    ((user.user_metadata?.full_name as string | undefined) ?? "").trim() ||
+    null;
   const email = user.email ?? "";
 
   // Initials from full_name words (e.g. "Daniel Þórðarson" → "DÞ")
