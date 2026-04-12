@@ -16,8 +16,13 @@ export default function BottomNav() {
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl border-t border-white/10"
+      className="block md:hidden rounded-t-2xl border-t border-white/10"
       style={{
+        position: "fixed",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 50,
         backgroundColor: "#0d1117",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
       }}
