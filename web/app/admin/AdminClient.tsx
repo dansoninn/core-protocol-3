@@ -884,7 +884,7 @@ function CourseBuilderTab() {
       .update({ title })
       .eq("id", weekId);
     if (error) show(error.message, "error");
-    else loadWeeks(selectedCourseId);
+    else setWeekInState(weekId, { title });
   };
 
   const deleteWeek = async (weekId: string) => {
@@ -964,7 +964,7 @@ function CourseBuilderTab() {
   const updateTaskField = async (taskId: string, patch: Partial<Pick<DbTask, "name" | "color" | "video_url">>) => {
     const { error } = await supabase.from("tasks").update(patch).eq("id", taskId);
     if (error) show(error.message, "error");
-    else loadWeeks(selectedCourseId);
+    else setTaskInState(taskId, patch);
   };
 
   // ── Block operations ─────────────────────────────────────────────────────────
@@ -998,7 +998,7 @@ function CourseBuilderTab() {
       .update({ content })
       .eq("id", blockId);
     if (error) show(error.message, "error");
-    else loadWeeks(selectedCourseId);
+    else setBlockInState(blockId, { content });
   };
 
   const updateBlockExercise = async (blockId: string, exerciseId: string) => {
@@ -1007,7 +1007,7 @@ function CourseBuilderTab() {
       .update({ exercise_id: exerciseId })
       .eq("id", blockId);
     if (error) show(error.message, "error");
-    else loadWeeks(selectedCourseId);
+    else setBlockInState(blockId, { exercise_id: exerciseId });
   };
 
   const updateBlockFields = async (
@@ -1030,9 +1030,47 @@ function CourseBuilderTab() {
     } else {
       const { data } = supabase.storage.from("task-videos").getPublicUrl(path);
       await updateTaskField(taskId, { video_url: data.publicUrl });
-      loadWeeks(selectedCourseId);
     }
     setTaskVideoUploading((prev) => ({ ...prev, [taskId]: false }));
+  };
+
+  // ── Local state updaters (no reload) ────────────────────────────────────────
+
+  const setWeekInState = (weekId: string, patch: Partial<DbWeek>) => {
+    setWeeks((prev) =>
+      prev.map((w) => (w.id === weekId ? { ...w, ...patch } : w))
+    );
+  };
+
+  const setTaskInState = (taskId: string, patch: Partial<DbTask>) => {
+    setWeeks((prev) =>
+      prev.map((w) => ({
+        ...w,
+        days: w.days.map((d) => ({
+          ...d,
+          tasks: d.tasks.map((t) =>
+            t.id === taskId ? { ...t, ...patch } : t
+          ),
+        })),
+      }))
+    );
+  };
+
+  const setBlockInState = (blockId: string, patch: Partial<DbBlock>) => {
+    setWeeks((prev) =>
+      prev.map((w) => ({
+        ...w,
+        days: w.days.map((d) => ({
+          ...d,
+          tasks: d.tasks.map((t) => ({
+            ...t,
+            blocks: t.blocks.map((b) =>
+              b.id === blockId ? { ...b, ...patch } : b
+            ),
+          })),
+        })),
+      }))
+    );
   };
 
   const moveBlock = async (
@@ -1050,7 +1088,26 @@ function CourseBuilderTab() {
       supabase.from("blocks").update({ order_index: other.order_index }).eq("id", block.id),
       supabase.from("blocks").update({ order_index: block.order_index }).eq("id", other.id),
     ]);
-    loadWeeks(selectedCourseId);
+    // Swap order_index values in local state
+    setWeeks((prev) =>
+      prev.map((w) => ({
+        ...w,
+        days: w.days.map((d) => ({
+          ...d,
+          tasks: d.tasks.map((t) => {
+            if (!t.blocks.find((b) => b.id === blockId)) return t;
+            const newBlocks = t.blocks
+              .map((b) => {
+                if (b.id === block.id) return { ...b, order_index: other.order_index };
+                if (b.id === other.id) return { ...b, order_index: block.order_index };
+                return b;
+              })
+              .sort((a, b) => a.order_index - b.order_index);
+            return { ...t, blocks: newBlocks };
+          }),
+        })),
+      }))
+    );
   };
 
   return (

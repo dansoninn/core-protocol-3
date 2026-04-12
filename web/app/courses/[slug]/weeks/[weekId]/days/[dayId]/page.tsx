@@ -112,9 +112,9 @@ export default async function DayPage({
   const { data: tasksRaw } = await supabase
     .from("tasks")
     .select(`
-      id, day_id, name, color, video_url, order_index,
+      *,
       blocks(
-        id, task_id, type, order_index, exercise_id, content, sets, reps, load,
+        *,
         exercises(id, name, category, description, video_url)
       )
     `)
