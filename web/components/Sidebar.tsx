@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Home, BookOpen, Dumbbell, User, ShieldCheck, LogOut } from "lucide-react";
@@ -18,9 +19,29 @@ const navItems = [
   { label: "Prófíll", href: "/profile", Icon: User },
 ];
 
-export default function Sidebar({ userEmail, userFullName, isAdmin }: Props) {
+export default function Sidebar({ userEmail, userFullName: userFullNameProp, isAdmin }: Props) {
   const pathname = usePathname();
   const router = useRouter();
+
+  // Fetch full_name directly from profiles using the browser client so we
+  // always use the same auth path that successfully writes data.
+  const [fullName, setFullName] = useState<string | null>(userFullNameProp ?? null);
+
+  useEffect(() => {
+    if (!userEmail) return;
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .single()
+        .then(({ data }) => {
+          if (data?.full_name) setFullName(data.full_name);
+        });
+    });
+  }, [userEmail]);
 
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -32,13 +53,14 @@ export default function Sidebar({ userEmail, userFullName, isAdmin }: Props) {
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");
 
-  const displayName = userFullName || userEmail || "";
-  const initials = displayName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join("") || "?";
+  const displayName = fullName || userEmail || "";
+  const initials =
+    displayName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0].toUpperCase())
+      .join("") || "?";
 
   return (
     <aside
@@ -112,9 +134,9 @@ export default function Sidebar({ userEmail, userFullName, isAdmin }: Props) {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white text-xs font-medium truncate">
-                {userFullName || userEmail}
+                {fullName || userEmail}
               </p>
-              {userFullName && (
+              {fullName && (
                 <p className="text-zinc-500 text-[10px] truncate">{userEmail}</p>
               )}
             </div>

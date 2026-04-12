@@ -35,14 +35,18 @@ export default function SettingsClient({ email, fullName }: Props) {
       return;
     }
 
+    const trimmed = name.trim() || null;
+
     const { error } = await supabase
       .from("profiles")
-      .update({ full_name: name.trim() || null })
+      .update({ full_name: trimmed })
       .eq("id", user.id);
 
     if (error) {
       setNameMsg({ ok: false, text: "Villa: " + error.message });
     } else {
+      // Also sync into auth metadata so server components can read it
+      await supabase.auth.updateUser({ data: { full_name: trimmed } });
       setNameMsg({ ok: true, text: "Nafn uppfært!" });
       router.refresh();
     }

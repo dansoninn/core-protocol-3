@@ -39,12 +39,13 @@ export default async function ProfilePage() {
   if (!user) redirect("/auth/login?next=/profile");
 
   // ── Profile ──────────────────────────────────────────────────────────────
-  const { data: profileRaw } = await supabase
+  const { data: profileRaw, error: profileError } = await supabase
     .from("profiles")
     .select("full_name, avatar_url, created_at")
     .eq("id", user.id)
     .single();
 
+  if (profileError) console.error("[ProfilePage] profiles query:", profileError.message);
   const profile = profileRaw as ProfileRow | null;
 
   // ── Purchases + course structure ─────────────────────────────────────────
@@ -122,7 +123,8 @@ export default async function ProfilePage() {
   });
 
   // ── Display helpers ──────────────────────────────────────────────────────
-  // Prefer DB value, fall back to auth metadata set at signup
+  // Prefer profiles table; fall back to auth metadata (set at signup or after
+  // settings save via auth.updateUser) so the heading is never blank.
   const fullName =
     profile?.full_name?.trim() ||
     ((user.user_metadata?.full_name as string | undefined) ?? "").trim() ||
