@@ -32,6 +32,15 @@ export default async function DashboardPage() {
 
   if (!user) redirect("/auth/login?next=/dashboard");
 
+  // Fetch full_name from profiles
+  const { data: profileRow } = await supabase
+    .from("profiles")
+    .select("full_name")
+    .eq("id", user.id)
+    .single();
+
+  const displayName = profileRow?.full_name?.trim() || user.email || "";
+
   // Fetch purchases with nested course → weeks → days for completion tracking
   const { data: purchaseRows } = await supabase
     .from("purchases")
@@ -98,7 +107,7 @@ export default async function DashboardPage() {
         <p className="text-sm text-zinc-500 mb-1">Stjórnborð</p>
         <h1 className="text-3xl font-extrabold text-zinc-900">
           Velkominn,{" "}
-          <span className="text-zinc-600">{user.email}</span>
+          <span className="text-zinc-600">{displayName}</span>
         </h1>
       </div>
 

@@ -23,24 +23,23 @@ export default function Sidebar({ userEmail, userFullName: userFullNameProp, isA
   const pathname = usePathname();
   const router = useRouter();
 
-  // Fetch full_name directly from profiles using the browser client so we
-  // always use the same auth path that successfully writes data.
+  // full_name from profiles — start with server-side prop, refresh client-side
   const [fullName, setFullName] = useState<string | null>(userFullNameProp ?? null);
 
   useEffect(() => {
     if (!userEmail) return;
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      supabase
+      const { data } = await supabase
         .from("profiles")
         .select("full_name")
         .eq("id", user.id)
-        .single()
-        .then(({ data }) => {
-          if (data?.full_name) setFullName(data.full_name);
-        });
-    });
+        .single();
+      // Always apply the result so we reflect the DB value, even null
+      setFullName(data?.full_name?.trim() || null);
+    })();
   }, [userEmail]);
 
   const handleSignOut = async () => {
