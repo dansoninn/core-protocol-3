@@ -32,10 +32,6 @@ interface ProfileRow {
   created_at: string;
 }
 
-interface ProfileWithPurchases extends ProfileRow {
-  purchases: { courses: { title: string } | null }[];
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function AdminPage() {
