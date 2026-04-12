@@ -37,7 +37,7 @@ export default function SettingsClient({ email, fullName }: Props) {
 
     const { error } = await supabase
       .from("profiles")
-      .upsert({ id: user.id, full_name: name.trim() || null })
+      .update({ full_name: name.trim() || null })
       .eq("id", user.id);
 
     if (error) {
