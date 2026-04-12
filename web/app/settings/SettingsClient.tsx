@@ -64,7 +64,7 @@ export default function SettingsClient({ email, fullName }: Props) {
     setPwMsg(null);
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?next=/settings`,
+      redirectTo: `${window.location.origin}/auth/confirm`,
     });
 
     if (error) {
