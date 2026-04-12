@@ -975,15 +975,32 @@ function CourseBuilderTab() {
     type: "exercise" | "text",
     exerciseId?: string
   ) => {
-    const { error } = await supabase.from("blocks").insert({
-      task_id: taskId,
-      type,
-      order_index: blockCount,
-      exercise_id: exerciseId ?? null,
-      content: type === "text" ? "" : null,
-    });
+    const { data: newBlock, error } = await supabase
+      .from("blocks")
+      .insert({
+        task_id: taskId,
+        type,
+        order_index: blockCount,
+        exercise_id: exerciseId ?? null,
+        content: type === "text" ? "" : null,
+      })
+      .select()
+      .single();
     if (error) show(error.message, "error");
-    else loadWeeks(selectedCourseId);
+    else {
+      const block = newBlock as DbBlock;
+      setWeeks((prev) =>
+        prev.map((w) => ({
+          ...w,
+          days: w.days.map((d) => ({
+            ...d,
+            tasks: d.tasks.map((t) =>
+              t.id === taskId ? { ...t, blocks: [...t.blocks, block] } : t
+            ),
+          })),
+        }))
+      );
+    }
   };
 
   const deleteBlock = async (blockId: string) => {
@@ -1294,7 +1311,7 @@ function CourseBuilderTab() {
                                           {TASK_COLOR_PRESETS.map((c) => (
                                             <button
                                               key={c}
-                                              onClick={() => updateTaskField(task.id, { color: c })}
+                                              onClick={(e) => { e.preventDefault(); updateTaskField(task.id, { color: c }); }}
                                               className="w-4 h-4 rounded-full transition-transform hover:scale-125 focus:outline-none"
                                               style={{ backgroundColor: c }}
                                               aria-label={`Set color ${c}`}
@@ -1486,7 +1503,8 @@ function CourseBuilderTab() {
                                                 .map((ex) => (
                                                   <button
                                                     key={ex.id}
-                                                    onClick={() => {
+                                                    onClick={(e) => {
+                                                      e.preventDefault();
                                                       addBlock(
                                                         task.id,
                                                         task.blocks?.length ?? 0,
@@ -1526,16 +1544,14 @@ function CourseBuilderTab() {
                                         ) : (
                                           <div className="flex items-center gap-3">
                                             <button
-                                              onClick={() => setShowExSelectForTask(task.id)}
+                                              onClick={(e) => { e.preventDefault(); setShowExSelectForTask(task.id); }}
                                               className="text-xs text-zinc-500 hover:text-zinc-100 font-medium transition-colors"
                                             >
                                               + Exercise
                                             </button>
                                             <span className="text-zinc-700 select-none">|</span>
                                             <button
-                                              onClick={() =>
-                                                addBlock(task.id, task.blocks?.length ?? 0, "text")
-                                              }
+                                              onClick={(e) => { e.preventDefault(); addBlock(task.id, task.blocks?.length ?? 0, "text"); }}
                                               className="text-xs text-zinc-500 hover:text-zinc-100 font-medium transition-colors"
                                             >
                                               + Text
