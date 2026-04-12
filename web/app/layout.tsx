@@ -22,10 +22,20 @@ export default async function RootLayout({
     data: { user },
   } = await supabase.auth.getUser();
 
+  let fullName: string | null = null;
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .single();
+    fullName = profile?.full_name ?? null;
+  }
+
   return (
     <html lang="is">
       <body className={`${inter.className} bg-zinc-50 text-zinc-900 min-h-screen`}>
-        <Navbar userEmail={user?.email ?? null} />
+        <Navbar userEmail={user?.email ?? null} userFullName={fullName} />
         <div className="pb-16 md:pb-0">{children}</div>
         <BottomNav />
       </body>

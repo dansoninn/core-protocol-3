@@ -6,9 +6,10 @@ import { createClient } from "@/lib/supabase/client";
 
 interface Props {
   userEmail?: string | null;
+  userFullName?: string | null;
 }
 
-export default function Navbar({ userEmail }: Props) {
+export default function Navbar({ userEmail, userFullName }: Props) {
   const router = useRouter();
 
   const handleSignOut = async () => {
@@ -47,9 +48,9 @@ export default function Navbar({ userEmail }: Props) {
               <Link
                 href="/profile"
                 className="text-sm text-zinc-300 hover:text-white transition-colors hidden sm:block max-w-[160px] truncate"
-                title={userEmail}
+                title={userEmail ?? undefined}
               >
-                {userEmail}
+                {userFullName || userEmail}
               </Link>
               <button
                 onClick={handleSignOut}
