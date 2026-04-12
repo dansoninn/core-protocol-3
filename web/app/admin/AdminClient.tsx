@@ -806,6 +806,8 @@ function CourseBuilderTab() {
   const [weeks, setWeeks] = useState<DbWeek[]>([]);
   const [loadingWeeks, setLoadingWeeks] = useState(false);
   const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
+  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
   const [editingDay, setEditingDay] = useState<string | null>(null);
   const [dayForms, setDayForms] = useState<Record<string, Partial<DbDay>>>({});
   const [showExSelectForTask, setShowExSelectForTask] = useState<string | null>(null);
@@ -853,6 +855,8 @@ function CourseBuilderTab() {
     setSelectedCourseId(id);
     setWeeks([]);
     setExpandedWeeks(new Set());
+    setExpandedDays(new Set());
+    setExpandedTasks(new Set());
     setEditingDay(null);
     if (id) loadWeeks(id);
   };
@@ -861,6 +865,22 @@ function CourseBuilderTab() {
     setExpandedWeeks((prev) => {
       const next = new Set(prev);
       if (next.has(weekId)) { next.delete(weekId); } else { next.add(weekId); }
+      return next;
+    });
+  };
+
+  const toggleDay = (dayId: string) => {
+    setExpandedDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(dayId)) { next.delete(dayId); } else { next.add(dayId); }
+      return next;
+    });
+  };
+
+  const toggleTask = (taskId: string) => {
+    setExpandedTasks((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) { next.delete(taskId); } else { next.add(taskId); }
       return next;
     });
   };
@@ -1266,17 +1286,30 @@ function CourseBuilderTab() {
                                     </div>
                                   </div>
                                 ) : (
-                                  <div className="flex items-start justify-between gap-4">
-                                    <div>
-                                      <p className="text-sm font-semibold text-zinc-100">
-                                        {day.title}
-                                      </p>
+                                  <div className="flex items-center gap-3">
+                                    <button
+                                      onClick={(e) => { e.preventDefault(); toggleDay(day.id); }}
+                                      className="text-zinc-500 hover:text-zinc-200 transition-colors shrink-0"
+                                      aria-label={expandedDays.has(day.id) ? "Collapse day" : "Expand day"}
+                                    >
+                                      <svg
+                                        className={`w-3.5 h-3.5 transition-transform ${expandedDays.has(day.id) ? "rotate-90" : ""}`}
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                      </svg>
+                                    </button>
+                                    <div
+                                      className="flex-1 min-w-0 cursor-pointer select-none"
+                                      onClick={() => toggleDay(day.id)}
+                                    >
+                                      <p className="text-sm font-semibold text-zinc-100">{day.title}</p>
                                       {day.description && (
-                                        <p className="text-xs text-zinc-500 mt-0.5 line-clamp-1">
-                                          {day.description}
-                                        </p>
+                                        <p className="text-xs text-zinc-500 mt-0.5 line-clamp-1">{day.description}</p>
                                       )}
-                                      <p className="text-xs text-zinc-600 mt-1">
+                                      <p className="text-xs text-zinc-600 mt-0.5">
                                         {day.tasks?.length ?? 0} task{(day.tasks?.length ?? 0) !== 1 ? "s" : ""}
                                       </p>
                                     </div>
@@ -1296,6 +1329,7 @@ function CourseBuilderTab() {
                                 )}
 
                                 {/* Tasks */}
+                                {expandedDays.has(day.id) && (
                                 <div className="pl-4 space-y-3">
                                   {(day.tasks ?? []).map((task) => (
                                     <div
@@ -1332,12 +1366,33 @@ function CourseBuilderTab() {
                                           }}
                                           className="flex-1 bg-transparent text-sm font-medium text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-600 rounded px-1"
                                         />
+                                        {!expandedTasks.has(task.id) && (task.blocks?.length ?? 0) > 0 && (
+                                          <span className="text-[10px] text-zinc-600 shrink-0 tabular-nums">
+                                            {task.blocks.length} block{task.blocks.length !== 1 ? "s" : ""}
+                                          </span>
+                                        )}
+                                        <button
+                                          onClick={(e) => { e.preventDefault(); toggleTask(task.id); }}
+                                          className="text-zinc-500 hover:text-zinc-200 transition-colors shrink-0"
+                                          aria-label={expandedTasks.has(task.id) ? "Collapse task" : "Expand task"}
+                                        >
+                                          <svg
+                                            className={`w-3.5 h-3.5 transition-transform ${expandedTasks.has(task.id) ? "rotate-90" : ""}`}
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                          >
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                          </svg>
+                                        </button>
                                         <ConfirmDelete
                                           label={task.name}
                                           onConfirm={() => deleteTask(task.id)}
                                         />
                                       </div>
 
+                                      {/* Task body — video, blocks, add block */}
+                                      {expandedTasks.has(task.id) && (<>
                                       {/* Task video */}
                                       <div className="flex items-center gap-2 px-4 py-2 border-t border-zinc-700/40">
                                         <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider shrink-0 w-10">
@@ -1559,6 +1614,7 @@ function CourseBuilderTab() {
                                           </div>
                                         )}
                                       </div>
+                                      </>)}
                                     </div>
                                   ))}
 
@@ -1570,6 +1626,7 @@ function CourseBuilderTab() {
                                     + Add Task
                                   </button>
                                 </div>
+                                )}
                               </div>
                             );
                           })}
