@@ -98,7 +98,6 @@ export default function DayClient({
   courseInstructor,
   coverImage,
   weekTitle,
-  weekId: _weekId,
   day,
   tasks,
   userId,
