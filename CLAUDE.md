@@ -1,28 +1,83 @@
-## Project
-CP.v02 (Core Protocol) - Next.js e-learning platform
-All app code is in /web directory
+# Core Protocol — CP.v02
 
-## Before Every Commit
-- Always run `cd web && npm run build` before committing
-- Fix ALL TypeScript and ESLint errors before pushing
-- Never push code that fails to build locally
+## Project Overview
+Next.js 14 e-learning/training platform for fitness and training programs.
+Deployed at core-protocol-3.vercel.app via Vercel (GitHub → auto deploy).
+All app code lives in the `/web` directory.
 
-## Stack
-- Next.js App Router (v14)
-- Supabase (@supabase/ssr) for auth and database
-- TypeScript, Tailwind CSS
-- Deployed on Vercel via GitHub (main branch)
+## Tech Stack
+- **Framework:** Next.js 14 App Router
+- **Auth + Database:** Supabase (@supabase/ssr)
+- **Styling:** Tailwind CSS
+- **Language:** TypeScript
+- **Deployment:** Vercel
 
-## Supabase
-- Server components: use @/lib/supabase/server
-- Client components: use @/lib/supabase/client
-- Never use mock/hardcoded data - always read from Supabase
+## Supabase Clients
+- Browser: `@/lib/supabase/client`
+- Server: `@/lib/supabase/server`
 
-## Architecture
-- /dashboard - authenticated users only (middleware protected)
-- /admin - admin role only (middleware + server-side check)
+## Route Protection (middleware)
+- `/dashboard` — requires auth
+- `/admin` — requires auth + role = 'admin'
+
+## Database Schema
+```
+profiles (id, email, full_name, role, created_at)
+courses (id, title, slug, description, category, price, cover_image, instructor)
+exercises (id, name, category, description, video_url)
+weeks (id, course_id, title, order_index)
+days (id, week_id, title, description, order_index)
+tasks (id, day_id, name, color, video_url, order_index)
+blocks (id, task_id, type['exercise'|'text'], order_index, 
+        exercise_id, content, sets, reps, load_kg)
+purchases (id, user_id, course_id, created_at)
+progress (id, user_id, block_id, completed_at)
+```
+
+## Content Hierarchy
+Course → Week → Day → Task → Block (exercise or text)
+Progress tracked at **block level** (exercise blocks only).
+
+## Key Rules
+- NO mock/hardcoded data — everything reads from Supabase
 - Server components for all data fetching
 - Client components only for interactivity
+- No router.refresh() inside inline edit operations — local state only
+- e.preventDefault() on all block/task buttons to prevent scroll jump
+- Use npx tsc --noEmit to verify TypeScript (npm run build times out)
 
-## Do Not Touch
-- web/middleware.ts - do not modify
+## Storage Buckets (Supabase)
+- `course-images` — public, course cover images
+- `task-videos` — public, task videos
+
+## Admin Panel (/admin)
+Tabs: Exercise Bank | Courses | Course Builder | Users
+Course Builder: collapsible weeks/days/tasks, 
+exercise search with pills, duplicate day, move up/down
+
+## User-Facing Routes
+- `/` — homepage with course grid
+- `/courses` — all courses
+- `/courses/[slug]` — course overview with progress
+- `/courses/[slug]/weeks/[weekId]/days/[dayId]` — day view
+- `/dashboard` — user home
+- `/profile` — enrolled courses + streak
+- `/settings` — name + password
+
+## Features Done
+- Auth (Supabase) with email/password
+- Admin panel with full course builder
+- Day view: collapsible tasks, progress rings, video popup
+- Progress tracking at block level (persists to DB)
+- Hero image on day view
+- Prev/next day navigation (cross-week)
+- Exercise search with pills in admin
+- Image upload to Supabase Storage
+- Move up/down on weeks and days
+
+## Pending / Next
+- Teya payment integration (one-time + subscription)
+- Messaging per course (optional, checkbox in course creation)
+- Push notifications
+- Exercise bank filters (upper/lower body etc.)
+- Automated QA testing (Playwright + Claude API)
