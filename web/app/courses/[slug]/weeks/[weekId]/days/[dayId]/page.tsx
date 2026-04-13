@@ -16,6 +16,9 @@ interface DayRow {
       id: string;
       title: string;
       slug: string;
+      cover_image: string | null;
+      category: string;
+      instructor: string | null;
     };
   };
 }
@@ -47,6 +50,14 @@ interface TaskRow {
   }[];
 }
 
+interface WeekForNav {
+  id: string;
+  order_index: number;
+  days: { id: string; title: string; order_index: number }[];
+}
+
+type DayNavItem = { id: string; title: string; weekId: string } | null;
+
 export default async function DayPage({
   params,
 }: {
@@ -61,7 +72,7 @@ export default async function DayPage({
       id, title, description, week_id, order_index,
       weeks (
         id, title,
-        courses ( id, title, slug )
+        courses ( id, title, slug, cover_image, category, instructor )
       )
     `)
     .eq("id", params.dayId)
@@ -94,18 +105,29 @@ export default async function DayPage({
 
   if (!purchase) redirect(`/courses/${params.slug}`);
 
-  // ── Next day in this week ─────────────────────────────────────────────────
-  const { data: weekDaysRaw } = await supabase
-    .from("days")
-    .select("id, title, order_index")
-    .eq("week_id", params.weekId)
+  // ── Cross-week prev/next navigation ──────────────────────────────────────
+  const { data: allWeeksRaw } = await supabase
+    .from("weeks")
+    .select("id, order_index, days(id, title, order_index)")
+    .eq("course_id", dayData.weeks.courses.id)
     .order("order_index");
 
-  const weekDays = weekDaysRaw ?? [];
-  const currentIdx = weekDays.findIndex((d) => d.id === params.dayId);
-  const nextDay =
-    currentIdx >= 0 && currentIdx < weekDays.length - 1
-      ? weekDays[currentIdx + 1]
+  const allDaysFlat: { id: string; title: string; weekId: string }[] = (
+    (allWeeksRaw as unknown as WeekForNav[]) ?? []
+  )
+    .map((w) => ({
+      ...w,
+      days: [...(w.days ?? [])].sort((a, b) => a.order_index - b.order_index),
+    }))
+    .flatMap((w) =>
+      w.days.map((d) => ({ id: d.id, title: d.title, weekId: w.id }))
+    );
+
+  const currentIdx = allDaysFlat.findIndex((d) => d.id === params.dayId);
+  const prevDay: DayNavItem = currentIdx > 0 ? allDaysFlat[currentIdx - 1] : null;
+  const nextDay: DayNavItem =
+    currentIdx >= 0 && currentIdx < allDaysFlat.length - 1
+      ? allDaysFlat[currentIdx + 1]
       : null;
 
   // ── Tasks with blocks and exercises ───────────────────────────────────────
@@ -149,6 +171,9 @@ export default async function DayPage({
     <DayClient
       courseSlug={dayData.weeks.courses.slug}
       courseTitle={dayData.weeks.courses.title}
+      courseCategory={dayData.weeks.courses.category}
+      courseInstructor={dayData.weeks.courses.instructor}
+      coverImage={dayData.weeks.courses.cover_image}
       weekTitle={dayData.weeks.title}
       weekId={params.weekId}
       day={{
@@ -159,7 +184,8 @@ export default async function DayPage({
       tasks={tasks}
       userId={user.id}
       initialCompletedBlockIds={completedBlockIds}
-      nextDay={nextDay ? { id: nextDay.id, title: nextDay.title } : null}
+      prevDay={prevDay}
+      nextDay={nextDay}
     />
   );
 }

@@ -6,6 +6,13 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { DbCourse, DbWeek } from "@/types";
 
+interface DayProgressData {
+  blocksComplete: number;
+  blocksTotal: number;
+  tasksComplete: number;
+  tasksTotal: number;
+}
+
 interface Props {
   course: DbCourse;
   weeks: DbWeek[];
@@ -14,6 +21,36 @@ interface Props {
   blocksCompleted: number;
   blocksTotal: number;
   userId: string | null;
+  dayProgress: Record<string, DayProgressData>;
+}
+
+function DayRing({ blocksComplete, blocksTotal }: { blocksComplete: number; blocksTotal: number }) {
+  if (blocksTotal === 0) {
+    return (
+      <div className="w-5 h-5 rounded-full border-2 border-zinc-200 shrink-0" />
+    );
+  }
+  const r = 8;
+  const circ = 2 * Math.PI * r;
+  const complete = blocksComplete === blocksTotal;
+  if (complete) {
+    return (
+      <svg width="20" height="20" viewBox="0 0 20 20" className="shrink-0" aria-hidden="true">
+        <circle cx="10" cy="10" r="10" fill="#18181b" />
+        <path d="M6 10.5l3 3 5-5.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </svg>
+    );
+  }
+  const dash = (blocksComplete / blocksTotal) * circ;
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" style={{ transform: "rotate(-90deg)" }} className="shrink-0" aria-hidden="true">
+      <circle cx="10" cy="10" r={r} fill="none" stroke="#e4e4e7" strokeWidth="2" />
+      {blocksComplete > 0 && (
+        <circle cx="10" cy="10" r={r} fill="none" stroke="#18181b" strokeWidth="2"
+          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" />
+      )}
+    </svg>
+  );
 }
 
 export default function CourseClient({
@@ -24,6 +61,7 @@ export default function CourseClient({
   blocksCompleted,
   blocksTotal,
   userId,
+  dayProgress,
 }: Props) {
   const [purchased, setPurchased] = useState(initialPurchased);
   const [buying, setBuying] = useState(false);
@@ -148,6 +186,7 @@ export default function CourseClient({
                   <ul className="divide-y divide-zinc-50">
                     {week.days.map((day) => {
                       const isComplete = completedDayIds.includes(day.id);
+                      const dp = dayProgress[day.id];
 
                       return (
                         <li key={day.id}>
@@ -156,27 +195,10 @@ export default function CourseClient({
                               href={`/courses/${course.slug}/weeks/${week.id}/days/${day.id}`}
                               className="flex items-center gap-3 px-5 py-3.5 hover:bg-zinc-50 transition-colors group"
                             >
-                              <div
-                                className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border-2 ${
-                                  isComplete
-                                    ? "bg-zinc-900 border-zinc-900"
-                                    : "border-zinc-300 group-hover:border-zinc-500"
-                                }`}
-                              >
-                                {isComplete && (
-                                  <svg
-                                    className="w-3 h-3 text-white"
-                                    fill="currentColor"
-                                    viewBox="0 0 20 20"
-                                  >
-                                    <path
-                                      fillRule="evenodd"
-                                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                      clipRule="evenodd"
-                                    />
-                                  </svg>
-                                )}
-                              </div>
+                              <DayRing
+                                blocksComplete={dp?.blocksComplete ?? 0}
+                                blocksTotal={dp?.blocksTotal ?? 0}
+                              />
                               <span
                                 className={`text-sm flex-1 ${
                                   isComplete
@@ -186,8 +208,13 @@ export default function CourseClient({
                               >
                                 {day.title}
                               </span>
+                              {dp && dp.tasksTotal > 0 && (
+                                <span className="text-xs text-zinc-400 tabular-nums shrink-0">
+                                  {dp.tasksComplete}/{dp.tasksTotal}
+                                </span>
+                              )}
                               <svg
-                                className="w-4 h-4 text-zinc-400 group-hover:text-zinc-600"
+                                className="w-4 h-4 text-zinc-400 group-hover:text-zinc-600 shrink-0"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"

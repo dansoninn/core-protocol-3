@@ -13,16 +13,26 @@ interface DayProps {
   description: string | null;
 }
 
+interface DayNavItem {
+  id: string;
+  title: string;
+  weekId: string;
+}
+
 interface Props {
   courseSlug: string;
   courseTitle: string;
+  courseCategory: string | null;
+  courseInstructor: string | null;
+  coverImage: string | null;
   weekTitle: string;
   weekId: string;
   day: DayProps;
   tasks: DbTask[];
   userId: string;
   initialCompletedBlockIds: string[];
-  nextDay: { id: string; title: string } | null;
+  prevDay: DayNavItem | null;
+  nextDay: DayNavItem | null;
 }
 
 function ProgressRing({
@@ -84,12 +94,16 @@ function ProgressRing({
 export default function DayClient({
   courseSlug,
   courseTitle,
+  courseCategory,
+  courseInstructor,
+  coverImage,
   weekTitle,
   weekId,
   day,
   tasks,
   userId,
   initialCompletedBlockIds,
+  prevDay,
   nextDay,
 }: Props) {
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(
@@ -146,6 +160,35 @@ export default function DayClient({
   };
 
   return (
+    <>
+      {/* Course hero */}
+      <div className="relative w-full h-40 sm:h-52 bg-zinc-800 overflow-hidden">
+        {coverImage && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={coverImage}
+            alt={courseTitle}
+            className="absolute inset-0 w-full h-full object-cover opacity-50"
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 to-transparent" />
+        <div className="absolute bottom-0 left-0 right-0 px-4 sm:px-8 pb-5">
+          {courseCategory && (
+            <span className="inline-block text-[10px] font-semibold bg-white/20 text-white px-2.5 py-0.5 rounded-full mb-2 backdrop-blur">
+              {courseCategory}
+            </span>
+          )}
+          <p className="text-lg sm:text-xl font-extrabold text-white leading-tight">
+            {courseTitle}
+          </p>
+          {courseInstructor && (
+            <p className="text-zinc-400 text-xs mt-0.5">
+              Leiðbeinandi: {courseInstructor}
+            </p>
+          )}
+        </div>
+      </div>
+
     <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 space-y-6 pb-24 md:pb-10">
       {/* Breadcrumb */}
       <nav className="text-sm text-zinc-500 flex items-center gap-1.5 flex-wrap">
@@ -393,7 +436,7 @@ export default function DayClient({
           </div>
           {nextDay ? (
             <Link
-              href={`/courses/${courseSlug}/weeks/${weekId}/days/${nextDay.id}`}
+              href={`/courses/${courseSlug}/weeks/${nextDay.weekId}/days/${nextDay.id}`}
               className="flex items-center justify-between w-full bg-green-600 hover:bg-green-700 text-white text-sm font-semibold px-4 py-3 rounded-xl transition-colors min-h-[44px]"
             >
               <span>Næsti dagur: {nextDay.title}</span>
@@ -443,28 +486,42 @@ export default function DayClient({
         />
       )}
 
-      {/* Back link */}
-      <div className="pb-4">
-        <Link
-          href={`/courses/${courseSlug}`}
-          className="text-sm text-zinc-500 hover:text-zinc-800 flex items-center gap-1.5 transition-colors"
-        >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+      {/* Day navigation */}
+      <div className="flex items-center justify-between pt-2 pb-4">
+        {prevDay ? (
+          <Link
+            href={`/courses/${courseSlug}/weeks/${prevDay.weekId}/days/${prevDay.id}`}
+            className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 transition-colors min-h-[44px]"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-          Til baka í námskeið
-        </Link>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Fyrri dagur
+          </Link>
+        ) : (
+          <Link
+            href={`/courses/${courseSlug}`}
+            className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 transition-colors min-h-[44px]"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Til baka í námskeið
+          </Link>
+        )}
+        {nextDay && (
+          <Link
+            href={`/courses/${courseSlug}/weeks/${nextDay.weekId}/days/${nextDay.id}`}
+            className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 transition-colors min-h-[44px]"
+          >
+            Næsti dagur
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
+        )}
       </div>
     </main>
+    </>
   );
 }

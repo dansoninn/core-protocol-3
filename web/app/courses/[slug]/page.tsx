@@ -14,9 +14,17 @@ interface WeekRow {
     description: string | null;
     order_index: number;
     tasks: {
-      blocks: { id: string }[];
+      id: string;
+      blocks: { id: string; type: "exercise" | "text" }[];
     }[];
   }[];
+}
+
+interface DayProgressData {
+  blocksComplete: number;
+  blocksTotal: number;
+  tasksComplete: number;
+  tasksTotal: number;
 }
 
 export default async function CoursePage({
@@ -45,7 +53,7 @@ export default async function CoursePage({
       `id, title, order_index,
        days(
          id, title, description, order_index,
-         tasks(blocks(id))
+         tasks(id, blocks(id, type))
        )`
     )
     .eq("course_id", course.id)
@@ -68,6 +76,7 @@ export default async function CoursePage({
   let blocksCompleted = 0;
   let blocksTotal = 0;
   let completedDayIds: string[] = [];
+  let dayProgress: Record<string, DayProgressData> = {};
 
   if (user) {
     const { data: purchase } = await supabase
@@ -100,17 +109,38 @@ export default async function CoursePage({
         );
         blocksCompleted = completedSet.size;
 
-        // A day is "complete" when all its blocks are done
+        // Per-day progress (exercise blocks only)
+        rawWeeks.flatMap((w) => w.days ?? []).forEach((d) => {
+          let dayBlocksTotal = 0;
+          let dayBlocksComplete = 0;
+          let tasksWithEx = 0;
+          let tasksComplete = 0;
+          (d.tasks ?? []).forEach((t) => {
+            const exBlocks = (t.blocks ?? []).filter(
+              (b) => b.type === "exercise"
+            );
+            if (exBlocks.length > 0) {
+              tasksWithEx++;
+              const done = exBlocks.filter((b) => completedSet.has(b.id)).length;
+              dayBlocksTotal += exBlocks.length;
+              dayBlocksComplete += done;
+              if (done === exBlocks.length) tasksComplete++;
+            }
+          });
+          dayProgress[d.id] = {
+            blocksTotal: dayBlocksTotal,
+            blocksComplete: dayBlocksComplete,
+            tasksTotal: tasksWithEx,
+            tasksComplete,
+          };
+        });
+
+        // A day is "complete" when all its exercise blocks are done
         completedDayIds = rawWeeks
           .flatMap((w) => w.days ?? [])
           .filter((d) => {
-            const dayBlockIds = (d.tasks ?? []).flatMap((t) =>
-              (t.blocks ?? []).map((b) => b.id)
-            );
-            return (
-              dayBlockIds.length > 0 &&
-              dayBlockIds.every((id) => completedSet.has(id))
-            );
+            const p = dayProgress[d.id];
+            return p && p.blocksTotal > 0 && p.blocksComplete === p.blocksTotal;
           })
           .map((d) => d.id);
       }
@@ -126,6 +156,7 @@ export default async function CoursePage({
       blocksCompleted={blocksCompleted}
       blocksTotal={blocksTotal}
       userId={user?.id ?? null}
+      dayProgress={dayProgress}
     />
   );
 }
