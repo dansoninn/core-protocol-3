@@ -10,7 +10,9 @@ interface DbExercise {
   name: string;
   category: string;
   description: string;
-  video_url: string;
+  video_url: string | null;
+  mux_asset_id: string | null;
+  mux_playback_id: string | null;
   created_at: string;
 }
 
@@ -256,14 +258,23 @@ export default function AdminClient() {
 
 // ─── Exercise Bank tab ────────────────────────────────────────────────────────
 
-type ExerciseForm = Omit<DbExercise, "id" | "created_at">;
+type ExerciseForm = {
+  name: string;
+  category: string;
+  description: string;
+  mux_asset_id: string | null;
+  mux_playback_id: string | null;
+};
 
 const emptyExercise: ExerciseForm = {
   name: "",
   category: "Styrkur",
   description: "",
-  video_url: "",
+  mux_asset_id: null,
+  mux_playback_id: null,
 };
+
+type UploadStatus = "idle" | "requesting" | "uploading" | "processing" | "done" | "error";
 
 function ExercisesTab() {
   const supabase = createClient();
@@ -274,6 +285,8 @@ function ExercisesTab() {
   const [editId, setEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle");
+  const [uploadFileName, setUploadFileName] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -295,8 +308,11 @@ function ExercisesTab() {
       name: ex.name,
       category: ex.category,
       description: ex.description ?? "",
-      video_url: ex.video_url ?? "",
+      mux_asset_id: ex.mux_asset_id ?? null,
+      mux_playback_id: ex.mux_playback_id ?? null,
     });
+    setUploadStatus(ex.mux_playback_id ? "done" : "idle");
+    setUploadFileName(null);
     setShowForm(true);
   };
 
@@ -304,6 +320,50 @@ function ExercisesTab() {
     setForm(emptyExercise);
     setEditId(null);
     setShowForm(false);
+    setUploadStatus("idle");
+    setUploadFileName(null);
+  };
+
+  const handleVideoFile = async (file: File) => {
+    setUploadFileName(file.name);
+    setUploadStatus("requesting");
+
+    try {
+      // Step 1: get a direct upload URL from Mux
+      const slotRes = await fetch("/api/mux/upload", { method: "POST" });
+      if (!slotRes.ok) throw new Error("Failed to create upload slot");
+      const { uploadId, uploadUrl } = await slotRes.json();
+
+      // Step 2: PUT the file directly to Mux
+      setUploadStatus("uploading");
+      const putRes = await fetch(uploadUrl, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type },
+      });
+      if (!putRes.ok) throw new Error("File upload to Mux failed");
+
+      // Step 3: poll until the asset is ready (max ~60 s)
+      setUploadStatus("processing");
+      for (let i = 0; i < 30; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const pollRes = await fetch(`/api/mux/upload?uploadId=${uploadId}`);
+        const data = await pollRes.json();
+        if (data.playbackId) {
+          setForm((prev) => ({
+            ...prev,
+            mux_asset_id: data.assetId,
+            mux_playback_id: data.playbackId,
+          }));
+          setUploadStatus("done");
+          return;
+        }
+      }
+      throw new Error("Timed out waiting for Mux to process the video");
+    } catch (err) {
+      show(err instanceof Error ? err.message : "Upload failed", "error");
+      setUploadStatus("error");
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -329,6 +389,17 @@ function ExercisesTab() {
     if (error) show(error.message, "error");
     else { show("Deleted"); load(); }
   };
+
+  const uploadLabel: Record<UploadStatus, string> = {
+    idle: "Choose video file",
+    requesting: "Requesting upload slot…",
+    uploading: "Uploading to Mux…",
+    processing: "Processing video…",
+    done: "Upload complete",
+    error: "Upload failed — try again",
+  };
+
+  const isUploading = ["requesting", "uploading", "processing"].includes(uploadStatus);
 
   return (
     <>
@@ -378,15 +449,51 @@ function ExercisesTab() {
                     ))}
                   </select>
                 </Field>
-                <Field label="Video URL (YouTube embed)">
-                  <input
-                    value={form.video_url}
-                    onChange={(e) =>
-                      setForm({ ...form, video_url: e.target.value })
-                    }
-                    className={inp}
-                    placeholder="https://www.youtube.com/embed/..."
-                  />
+                <Field label="Video (Mux)">
+                  <div className="space-y-2">
+                    <label className={`flex items-center gap-3 cursor-pointer ${isUploading ? "pointer-events-none opacity-60" : ""}`}>
+                      <span
+                        className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                        style={{ backgroundColor: ACCENT, color: "#0F1923" }}
+                      >
+                        {uploadStatus === "done" ? "Replace" : "Choose file"}
+                      </span>
+                      <span className="text-xs text-zinc-500 truncate">
+                        {uploadFileName ?? (form.mux_playback_id ? `ID: ${form.mux_playback_id}` : "No file chosen")}
+                      </span>
+                      <input
+                        type="file"
+                        accept="video/*"
+                        className="sr-only"
+                        disabled={isUploading}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleVideoFile(file);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    {uploadStatus !== "idle" && (
+                      <div className="flex items-center gap-2">
+                        {isUploading && (
+                          <div className="w-3 h-3 border-2 border-zinc-600 border-t-zinc-300 rounded-full animate-spin shrink-0" />
+                        )}
+                        {uploadStatus === "done" && (
+                          <svg className="w-3.5 h-3.5 text-green-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                        {uploadStatus === "error" && (
+                          <svg className="w-3.5 h-3.5 text-red-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                        <span className={`text-xs ${uploadStatus === "done" ? "text-green-500" : uploadStatus === "error" ? "text-red-400" : "text-zinc-400"}`}>
+                          {uploadLabel[uploadStatus]}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </Field>
               </div>
               <Field label="Description">
@@ -400,7 +507,12 @@ function ExercisesTab() {
                 />
               </Field>
               <div className="flex items-center gap-3 pt-1">
-                <button type="submit" disabled={saving} className={btnPrimary} style={{ backgroundColor: ACCENT }}>
+                <button
+                  type="submit"
+                  disabled={saving || isUploading}
+                  className={btnPrimary}
+                  style={{ backgroundColor: ACCENT }}
+                >
                   {saving ? "Saving…" : editId ? "Save Changes" : "Add Exercise"}
                 </button>
                 <button type="button" onClick={resetForm} className={btnGhost}>
@@ -445,9 +557,10 @@ function ExercisesTab() {
                       {ex.category}
                     </td>
                     <td className="px-6 py-3 hidden md:table-cell">
-                      {ex.video_url ? (
-                        <span className="text-xs text-zinc-500 font-mono truncate max-w-[200px] block">
-                          {ex.video_url.replace("https://www.youtube.com/embed/", "yt:")}
+                      {ex.mux_playback_id ? (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-300 bg-zinc-800 border border-zinc-700 px-2 py-0.5 rounded-full">
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
+                          Mux
                         </span>
                       ) : (
                         <span className="text-xs text-zinc-700">—</span>
