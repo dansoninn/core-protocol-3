@@ -888,6 +888,28 @@ function CourseBuilderTab() {
 
   // ── Week operations ──────────────────────────────────────────────────────────
 
+  const moveWeek = async (weekId: string, direction: "up" | "down") => {
+    const idx = weeks.findIndex((w) => w.id === weekId);
+    if (idx < 0) return;
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= weeks.length) return;
+    const a = weeks[idx];
+    const b = weeks[swapIdx];
+    await Promise.all([
+      supabase.from("weeks").update({ order_index: b.order_index }).eq("id", a.id),
+      supabase.from("weeks").update({ order_index: a.order_index }).eq("id", b.id),
+    ]);
+    setWeeks((prev) =>
+      prev
+        .map((w) => {
+          if (w.id === a.id) return { ...w, order_index: b.order_index };
+          if (w.id === b.id) return { ...w, order_index: a.order_index };
+          return w;
+        })
+        .sort((x, y) => x.order_index - y.order_index)
+    );
+  };
+
   const addWeek = async () => {
     const order = weeks.length;
     const { error } = await supabase.from("weeks").insert({
@@ -915,6 +937,37 @@ function CourseBuilderTab() {
   };
 
   // ── Day operations ───────────────────────────────────────────────────────────
+
+  const moveDay = async (dayId: string, direction: "up" | "down") => {
+    const week = weeks.find((w) => w.days.some((d) => d.id === dayId));
+    if (!week) return;
+    const sortedDays = [...week.days].sort((a, b) => a.order_index - b.order_index);
+    const idx = sortedDays.findIndex((d) => d.id === dayId);
+    if (idx < 0) return;
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= sortedDays.length) return;
+    const a = sortedDays[idx];
+    const b = sortedDays[swapIdx];
+    await Promise.all([
+      supabase.from("days").update({ order_index: b.order_index }).eq("id", a.id),
+      supabase.from("days").update({ order_index: a.order_index }).eq("id", b.id),
+    ]);
+    setWeeks((prev) =>
+      prev.map((w) => {
+        if (!w.days.some((d) => d.id === dayId)) return w;
+        return {
+          ...w,
+          days: w.days
+            .map((d) => {
+              if (d.id === a.id) return { ...d, order_index: b.order_index };
+              if (d.id === b.id) return { ...d, order_index: a.order_index };
+              return d;
+            })
+            .sort((x, y) => x.order_index - y.order_index),
+        };
+      })
+    );
+  };
 
   const addDay = async (weekId: string, weekDaysCount: number) => {
     const { error } = await supabase.from("days").insert({
@@ -1293,7 +1346,7 @@ function CourseBuilderTab() {
                   </p>
                 )}
 
-                {weeks.map((week) => {
+                {weeks.map((week, weekIdx) => {
                   const expanded = expandedWeeks.has(week.id);
                   return (
                     <div
@@ -1333,6 +1386,28 @@ function CourseBuilderTab() {
                           {week.days?.length ?? 0} day
                           {(week.days?.length ?? 0) !== 1 ? "s" : ""}
                         </span>
+                        <div className="flex flex-col gap-0.5 shrink-0">
+                          <button
+                            onClick={(e) => { e.preventDefault(); moveWeek(week.id, "up"); }}
+                            disabled={weekIdx === 0}
+                            className="text-zinc-600 hover:text-zinc-300 disabled:opacity-20 transition-colors"
+                            aria-label="Move week up"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={(e) => { e.preventDefault(); moveWeek(week.id, "down"); }}
+                            disabled={weekIdx === weeks.length - 1}
+                            className="text-zinc-600 hover:text-zinc-300 disabled:opacity-20 transition-colors"
+                            aria-label="Move week down"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                        </div>
                         <ConfirmDelete
                           label={week.title}
                           onConfirm={() => deleteWeek(week.id)}
@@ -1342,9 +1417,10 @@ function CourseBuilderTab() {
                       {/* Days */}
                       {expanded && (
                         <div className="border-t border-zinc-800 divide-y divide-zinc-800">
-                          {(week.days ?? []).map((day) => {
+                          {(week.days ?? []).map((day, dayIdx) => {
                             const isEditing = editingDay === day.id;
                             const f = dayForms[day.id] ?? {};
+                            const totalDays = week.days?.length ?? 0;
 
                             return (
                               <div key={day.id} className="px-6 py-4 space-y-4">
@@ -1420,7 +1496,29 @@ function CourseBuilderTab() {
                                         {day.tasks?.length ?? 0} task{(day.tasks?.length ?? 0) !== 1 ? "s" : ""}
                                       </p>
                                     </div>
-                                    <div className="flex items-center gap-4 shrink-0">
+                                    <div className="flex items-center gap-3 shrink-0">
+                                      <div className="flex flex-col gap-0.5">
+                                        <button
+                                          onClick={(e) => { e.preventDefault(); moveDay(day.id, "up"); }}
+                                          disabled={dayIdx === 0}
+                                          className="text-zinc-600 hover:text-zinc-300 disabled:opacity-20 transition-colors"
+                                          aria-label="Move day up"
+                                        >
+                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                          </svg>
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.preventDefault(); moveDay(day.id, "down"); }}
+                                          disabled={dayIdx === totalDays - 1}
+                                          className="text-zinc-600 hover:text-zinc-300 disabled:opacity-20 transition-colors"
+                                          aria-label="Move day down"
+                                        >
+                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                          </svg>
+                                        </button>
+                                      </div>
                                       <button
                                         onClick={() => startEditDay(day)}
                                         className="text-xs text-zinc-400 hover:text-zinc-100 transition-colors font-medium"
