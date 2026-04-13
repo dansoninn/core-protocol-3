@@ -115,25 +115,32 @@ export default function DayClient({
     const isDone = completedIds.has(blockId);
 
     if (isDone) {
-      await supabase
+      const { error } = await supabase
         .from("progress")
         .delete()
         .eq("user_id", userId)
         .eq("block_id", blockId);
-      setCompletedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(blockId);
-        return next;
-      });
+      if (!error) {
+        setCompletedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(blockId);
+          return next;
+        });
+      }
     } else {
-      await supabase
+      const { error } = await supabase
         .from("progress")
-        .insert({ user_id: userId, block_id: blockId });
-      setCompletedIds((prev) => {
-        const next = new Set(prev);
-        next.add(blockId);
-        return next;
-      });
+        .upsert(
+          { user_id: userId, block_id: blockId },
+          { onConflict: "user_id,block_id" }
+        );
+      if (!error) {
+        setCompletedIds((prev) => {
+          const next = new Set(prev);
+          next.add(blockId);
+          return next;
+        });
+      }
     }
     setSaving(null);
   };
