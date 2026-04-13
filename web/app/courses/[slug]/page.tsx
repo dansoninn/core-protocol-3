@@ -76,7 +76,7 @@ export default async function CoursePage({
   let blocksCompleted = 0;
   let blocksTotal = 0;
   let completedDayIds: string[] = [];
-  let dayProgress: Record<string, DayProgressData> = {};
+  const dayProgress: Record<string, DayProgressData> = {};
 
   if (user) {
     const { data: purchase } = await supabase
