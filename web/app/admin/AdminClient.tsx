@@ -472,24 +472,24 @@ function ExercisesTab() {
           <h2 className="text-lg font-bold text-zinc-100">
             Exercises ({exercises.length})
           </h2>
-          {!showForm && (
-            <div className="flex items-center gap-2">
-              <label className={`${btnGhost} cursor-pointer ${bulkRunning ? "opacity-40 pointer-events-none" : ""}`}>
-                <span>Upload Multiple</span>
-                <input
-                  type="file"
-                  accept="video/mp4"
-                  multiple
-                  className="sr-only"
-                  disabled={bulkRunning}
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files.length > 0) {
-                      handleBulkFiles(e.target.files);
-                    }
-                    e.target.value = "";
-                  }}
-                />
-              </label>
+          <div className="flex items-center gap-2">
+            <label className={`${btnGhost} cursor-pointer ${bulkRunning ? "opacity-40 pointer-events-none" : ""}`}>
+              <span>Upload Multiple</span>
+              <input
+                type="file"
+                accept="video/mp4"
+                multiple
+                className="sr-only"
+                disabled={bulkRunning}
+                onChange={(e) => {
+                  if (e.target.files && e.target.files.length > 0) {
+                    handleBulkFiles(e.target.files);
+                  }
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            {!showForm && (
               <button
                 onClick={() => setShowForm(true)}
                 className={btnPrimary}
@@ -497,8 +497,8 @@ function ExercisesTab() {
               >
                 + Add Exercise
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Bulk upload progress */}
