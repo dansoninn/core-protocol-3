@@ -926,7 +926,7 @@ function CourseBuilderTab() {
   const [showExSelectForTask, setShowExSelectForTask] = useState<string | null>(null);
   const [exSearchForTask, setExSearchForTask] = useState<Record<string, string>>({});
   const [exBlockSearch, setExBlockSearch] = useState<Record<string, string>>({});
-  const [taskVideoUploading, setTaskVideoUploading] = useState<Record<string, boolean>>({});
+  const [taskVideoStatus, setTaskVideoStatus] = useState<Record<string, UploadStatus>>({});
 
   // Load courses and exercises on mount
   useEffect(() => {
@@ -1328,20 +1328,39 @@ function CourseBuilderTab() {
     if (error) show(error.message, "error");
   };
 
-  const uploadTaskVideo = async (taskId: string, file: File) => {
-    setTaskVideoUploading((prev) => ({ ...prev, [taskId]: true }));
-    const ext = file.name.split(".").pop();
-    const path = `${taskId}-${Date.now()}.${ext}`;
-    const { error } = await supabase.storage
-      .from("task-videos")
-      .upload(path, file, { upsert: true });
-    if (error) {
-      show("Video upload failed: " + error.message, "error");
-    } else {
-      const { data } = supabase.storage.from("task-videos").getPublicUrl(path);
-      await updateTaskField(taskId, { video_url: data.publicUrl });
+  const uploadTaskVideoMux = async (taskId: string, file: File) => {
+    const set = (s: UploadStatus) =>
+      setTaskVideoStatus((prev) => ({ ...prev, [taskId]: s }));
+    set("requesting");
+    try {
+      const slotRes = await fetch("/api/mux/upload", { method: "POST" });
+      if (!slotRes.ok) throw new Error("Failed to create upload slot");
+      const { uploadId, uploadUrl } = await slotRes.json();
+
+      set("uploading");
+      const putRes = await fetch(uploadUrl, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type },
+      });
+      if (!putRes.ok) throw new Error("File upload to Mux failed");
+
+      set("processing");
+      for (let i = 0; i < 30; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const pollRes = await fetch(`/api/mux/upload?uploadId=${uploadId}`);
+        const data = await pollRes.json();
+        if (data.playbackId) {
+          await updateTaskField(taskId, { video_url: data.playbackId });
+          set("done");
+          return;
+        }
+      }
+      throw new Error("Timed out waiting for Mux to process the video");
+    } catch (err) {
+      show(err instanceof Error ? err.message : "Upload failed", "error");
+      set("error");
     }
-    setTaskVideoUploading((prev) => ({ ...prev, [taskId]: false }));
   };
 
   // ── Local state updaters (no reload) ────────────────────────────────────────
@@ -1722,30 +1741,56 @@ function CourseBuilderTab() {
                                         <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider shrink-0 w-10">
                                           Video
                                         </span>
-                                        <input
-                                          defaultValue={task.video_url ?? ""}
-                                          onBlur={(e) => {
-                                            const val = e.target.value.trim() || null;
-                                            if (val !== (task.video_url ?? null))
-                                              updateTaskField(task.id, { video_url: val });
-                                          }}
-                                          className="flex-1 bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none"
-                                          placeholder="Paste URL or upload…"
-                                        />
-                                        <label className="cursor-pointer shrink-0">
-                                          <span className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-zinc-700 border border-zinc-600 text-zinc-300 hover:bg-zinc-600 transition-colors whitespace-nowrap">
-                                            {taskVideoUploading[task.id] ? "…" : "Upload"}
-                                          </span>
-                                          <input
-                                            type="file"
-                                            accept="video/*"
-                                            className="sr-only"
-                                            onChange={(e) => {
-                                              const file = e.target.files?.[0];
-                                              if (file) uploadTaskVideo(task.id, file);
-                                            }}
-                                          />
-                                        </label>
+                                        {(() => {
+                                          const status = taskVideoStatus[task.id] ?? "idle";
+                                          const isUploading = ["requesting", "uploading", "processing"].includes(status);
+                                          return (
+                                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                              <label className={`cursor-pointer shrink-0 ${isUploading ? "pointer-events-none opacity-60" : ""}`}>
+                                                <span className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-zinc-700 border border-zinc-600 text-zinc-300 hover:bg-zinc-600 transition-colors whitespace-nowrap">
+                                                  {status === "done" || task.video_url ? "Replace" : "Choose file"}
+                                                </span>
+                                                <input
+                                                  type="file"
+                                                  accept="video/*"
+                                                  className="sr-only"
+                                                  disabled={isUploading}
+                                                  onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) uploadTaskVideoMux(task.id, file);
+                                                    e.target.value = "";
+                                                  }}
+                                                />
+                                              </label>
+                                              {status === "idle" && task.video_url && (
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-zinc-300 bg-zinc-700 border border-zinc-600 px-2 py-0.5 rounded-full">
+                                                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
+                                                  Mux
+                                                </span>
+                                              )}
+                                              {status !== "idle" && (
+                                                <div className="flex items-center gap-1.5">
+                                                  {isUploading && (
+                                                    <div className="w-2.5 h-2.5 border border-zinc-600 border-t-zinc-300 rounded-full animate-spin shrink-0" />
+                                                  )}
+                                                  {status === "done" && (
+                                                    <svg className="w-3 h-3 text-green-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                    </svg>
+                                                  )}
+                                                  {status === "error" && (
+                                                    <svg className="w-3 h-3 text-red-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                    </svg>
+                                                  )}
+                                                  <span className={`text-[10px] ${status === "done" ? "text-green-500" : status === "error" ? "text-red-400" : "text-zinc-400"}`}>
+                                                    {{ requesting: "Requesting…", uploading: "Uploading…", processing: "Processing…", done: "Ready", error: "Failed", idle: "" }[status]}
+                                                  </span>
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        })()}
                                       </div>
 
                                       {/* Blocks */}
@@ -1894,7 +1939,7 @@ function CourseBuilderTab() {
                                       {/* Add block — search for exercise or add text */}
                                       <div className="px-4 py-2.5 border-t border-zinc-700/50">
                                         {showExSelectForTask === task.id ? (
-                                          <div className="space-y-2">
+                                          <div className="space-y-1.5">
                                             <input
                                               autoFocus
                                               type="search"
@@ -1906,21 +1951,33 @@ function CourseBuilderTab() {
                                                 }))
                                               }
                                               className="w-full bg-zinc-700 border border-zinc-600 rounded-lg px-3 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-500 focus:outline-none"
-                                              placeholder="Search exercises…"
+                                              placeholder="Search by name or category…"
                                             />
-                                            <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
-                                              {(exSearchForTask[task.id]
-                                                ? exercises.filter((ex) =>
-                                                    ex.name
-                                                      .toLowerCase()
-                                                      .includes(
-                                                        (exSearchForTask[task.id] ?? "").toLowerCase()
-                                                      )
+                                            <div className="border border-zinc-600 rounded-lg overflow-hidden">
+                                              {(() => {
+                                                const q = (exSearchForTask[task.id] ?? "").toLowerCase();
+                                                const results = exercises
+                                                  .filter((ex) =>
+                                                    !q ||
+                                                    ex.name.toLowerCase().includes(q) ||
+                                                    ex.category.toLowerCase().includes(q)
                                                   )
-                                                : exercises
-                                              )
-                                                .slice(0, 24)
-                                                .map((ex) => (
+                                                  .slice(0, 10);
+                                                if (exercises.length === 0) {
+                                                  return (
+                                                    <p className="px-3 py-2 text-xs text-zinc-600">
+                                                      Add exercises in Exercise Bank first.
+                                                    </p>
+                                                  );
+                                                }
+                                                if (results.length === 0) {
+                                                  return (
+                                                    <p className="px-3 py-2 text-xs text-zinc-600">
+                                                      No exercises match.
+                                                    </p>
+                                                  );
+                                                }
+                                                return results.map((ex) => (
                                                   <button
                                                     key={ex.id}
                                                     onClick={(e) => {
@@ -1937,16 +1994,13 @@ function CourseBuilderTab() {
                                                         [task.id]: "",
                                                       }));
                                                     }}
-                                                    className="text-xs px-2.5 py-1 rounded-full bg-zinc-700 border border-zinc-600 text-zinc-200 hover:bg-zinc-600 hover:border-zinc-500 transition-colors"
+                                                    className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left text-xs text-zinc-200 hover:bg-zinc-600 transition-colors border-b border-zinc-700/50 last:border-0"
                                                   >
-                                                    {ex.name}
+                                                    <span className="font-medium truncate">{ex.name}</span>
+                                                    <span className="text-zinc-500 shrink-0">{ex.category}</span>
                                                   </button>
-                                                ))}
-                                              {exercises.length === 0 && (
-                                                <span className="text-xs text-zinc-600">
-                                                  Add exercises in Exercise Bank first.
-                                                </span>
-                                              )}
+                                                ));
+                                              })()}
                                             </div>
                                             <button
                                               onClick={() => {
