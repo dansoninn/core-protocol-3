@@ -334,14 +334,13 @@ function ExercisesTab() {
       if (!slotRes.ok) throw new Error("Failed to create upload slot");
       const { uploadId, uploadUrl } = await slotRes.json();
 
-      // Step 2: PUT the file directly to Mux
+      // Step 2: PUT the file directly to Mux — no Content-Type, Mux detects format from bytes
       setUploadStatus("uploading");
       const putRes = await fetch(uploadUrl, {
         method: "PUT",
         body: file,
-        headers: { "Content-Type": file.type },
       });
-      if (!putRes.ok) throw new Error("File upload to Mux failed");
+      if (!putRes.ok) throw new Error(`Upload to Mux failed (${putRes.status})`);
 
       // Step 3: poll until the asset is ready (max ~60 s)
       setUploadStatus("processing");
@@ -349,6 +348,9 @@ function ExercisesTab() {
         await new Promise((r) => setTimeout(r, 2000));
         const pollRes = await fetch(`/api/mux/upload?uploadId=${uploadId}`);
         const data = await pollRes.json();
+        if (data.status === "errored") {
+          throw new Error(data.error ?? "Mux asset processing failed");
+        }
         if (data.playbackId) {
           setForm((prev) => ({
             ...prev,
@@ -1341,15 +1343,18 @@ function CourseBuilderTab() {
       const putRes = await fetch(uploadUrl, {
         method: "PUT",
         body: file,
-        headers: { "Content-Type": file.type },
+        // No Content-Type — Mux detects format from the raw bytes
       });
-      if (!putRes.ok) throw new Error("File upload to Mux failed");
+      if (!putRes.ok) throw new Error(`Upload to Mux failed (${putRes.status})`);
 
       set("processing");
       for (let i = 0; i < 30; i++) {
         await new Promise((r) => setTimeout(r, 2000));
         const pollRes = await fetch(`/api/mux/upload?uploadId=${uploadId}`);
         const data = await pollRes.json();
+        if (data.status === "errored") {
+          throw new Error(data.error ?? "Mux asset processing failed");
+        }
         if (data.playbackId) {
           await updateTaskField(taskId, { video_url: data.playbackId });
           set("done");

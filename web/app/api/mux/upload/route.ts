@@ -22,7 +22,7 @@ export async function POST() {
   })
 }
 
-// Poll for upload → asset readiness; returns playbackId once the asset is ready
+// Poll for upload → asset readiness; returns playbackId once ready, or status/error info
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const uploadId = searchParams.get('uploadId')
@@ -32,11 +32,23 @@ export async function GET(request: Request) {
 
   const upload = await mux.video.uploads.retrieve(uploadId)
 
+  // Upload-level error (e.g. the PUT itself failed or was rejected)
+  if (upload.status === 'errored') {
+    return NextResponse.json({ status: 'errored', error: 'Mux rejected the upload' })
+  }
+
   if (!upload.asset_id) {
+    // Still waiting for the PUT to complete / asset to be created
     return NextResponse.json({ status: upload.status })
   }
 
   const asset = await mux.video.assets.retrieve(upload.asset_id)
+
+  if (asset.status === 'errored') {
+    const reason = (asset.errors?.messages ?? []).join('; ') || 'Asset processing failed'
+    return NextResponse.json({ status: 'errored', error: reason })
+  }
+
   const playbackId = asset.playback_ids?.[0]?.id ?? null
 
   return NextResponse.json({
