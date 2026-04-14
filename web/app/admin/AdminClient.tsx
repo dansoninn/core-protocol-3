@@ -103,6 +103,7 @@ const CATEGORIES = [
   "Liðleiki & hreyfigeta",
   "Heilsa & endurnæring",
   "Endurhæfing",
+  "Óflokkað",
 ];
 
 // ─── Shared UI helpers ─────────────────────────────────────────────────────────
@@ -276,6 +277,13 @@ const emptyExercise: ExerciseForm = {
 
 type UploadStatus = "idle" | "requesting" | "uploading" | "processing" | "done" | "error";
 
+type BulkItem = {
+  key: string;
+  name: string;
+  status: "pending" | "uploading" | "processing" | "done" | "error";
+  message: string;
+};
+
 function ExercisesTab() {
   const supabase = createClient();
   const { toast, show } = useToast();
@@ -287,6 +295,8 @@ function ExercisesTab() {
   const [showForm, setShowForm] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>("idle");
   const [uploadFileName, setUploadFileName] = useState<string | null>(null);
+  const [bulkItems, setBulkItems] = useState<BulkItem[]>([]);
+  const [bulkRunning, setBulkRunning] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -327,36 +337,23 @@ function ExercisesTab() {
   const handleVideoFile = async (file: File) => {
     setUploadFileName(file.name);
     setUploadStatus("requesting");
-
     try {
-      // Step 1: get a direct upload URL from Mux
       const slotRes = await fetch("/api/mux/upload", { method: "POST" });
       if (!slotRes.ok) throw new Error("Failed to create upload slot");
       const { uploadId, uploadUrl } = await slotRes.json();
 
-      // Step 2: PUT the file directly to Mux — no Content-Type, Mux detects format from bytes
       setUploadStatus("uploading");
-      const putRes = await fetch(uploadUrl, {
-        method: "PUT",
-        body: file,
-      });
+      const putRes = await fetch(uploadUrl, { method: "PUT", body: file });
       if (!putRes.ok) throw new Error(`Upload to Mux failed (${putRes.status})`);
 
-      // Step 3: poll until the asset is ready (max ~60 s)
       setUploadStatus("processing");
       for (let i = 0; i < 30; i++) {
         await new Promise((r) => setTimeout(r, 2000));
         const pollRes = await fetch(`/api/mux/upload?uploadId=${uploadId}`);
         const data = await pollRes.json();
-        if (data.status === "errored") {
-          throw new Error(data.error ?? "Mux asset processing failed");
-        }
+        if (data.status === "errored") throw new Error(data.error ?? "Mux asset processing failed");
         if (data.playbackId) {
-          setForm((prev) => ({
-            ...prev,
-            mux_asset_id: data.assetId,
-            mux_playback_id: data.playbackId,
-          }));
+          setForm((prev) => ({ ...prev, mux_asset_id: data.assetId, mux_playback_id: data.playbackId }));
           setUploadStatus("done");
           return;
         }
@@ -368,14 +365,76 @@ function ExercisesTab() {
     }
   };
 
+  const handleBulkFiles = async (files: FileList) => {
+    const items: BulkItem[] = Array.from(files).map((f) => ({
+      key: f.name,
+      name: f.name.replace(/\.mp4$/i, "").replace(/[-_]/g, " ").trim(),
+      status: "pending",
+      message: "Waiting…",
+    }));
+    setBulkItems(items);
+    setBulkRunning(true);
+
+    const update = (key: string, patch: Partial<BulkItem>) =>
+      setBulkItems((prev) =>
+        prev.map((it) => (it.key === key ? { ...it, ...patch } : it))
+      );
+
+    await Promise.all(
+      Array.from(files).map(async (file) => {
+        const key = file.name;
+        const name = file.name.replace(/\.mp4$/i, "").replace(/[-_]/g, " ").trim();
+        try {
+          update(key, { status: "uploading", message: "Requesting slot…" });
+          const slotRes = await fetch("/api/mux/upload", { method: "POST" });
+          if (!slotRes.ok) throw new Error("Failed to create upload slot");
+          const { uploadId, uploadUrl } = await slotRes.json();
+
+          update(key, { message: "Uploading…" });
+          const putRes = await fetch(uploadUrl, { method: "PUT", body: file });
+          if (!putRes.ok) throw new Error(`Upload failed (${putRes.status})`);
+
+          update(key, { status: "processing", message: "Processing…" });
+          let assetId: string | null = null;
+          let playbackId: string | null = null;
+          for (let i = 0; i < 30; i++) {
+            await new Promise((r) => setTimeout(r, 2000));
+            const pollRes = await fetch(`/api/mux/upload?uploadId=${uploadId}`);
+            const data = await pollRes.json();
+            if (data.status === "errored") throw new Error(data.error ?? "Mux error");
+            if (data.playbackId) { assetId = data.assetId; playbackId = data.playbackId; break; }
+          }
+          if (!playbackId) throw new Error("Timed out");
+
+          update(key, { message: "Saving…" });
+          const { error } = await supabase.from("exercises").insert({
+            name,
+            category: "Óflokkað",
+            description: "",
+            mux_asset_id: assetId,
+            mux_playback_id: playbackId,
+          });
+          if (error) throw new Error(error.message);
+
+          update(key, { status: "done", message: "Done" });
+        } catch (err) {
+          update(key, {
+            status: "error",
+            message: err instanceof Error ? err.message : "Failed",
+          });
+        }
+      })
+    );
+
+    setBulkRunning(false);
+    load();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     if (editId) {
-      const { error } = await supabase
-        .from("exercises")
-        .update(form)
-        .eq("id", editId);
+      const { error } = await supabase.from("exercises").update(form).eq("id", editId);
       if (error) show(error.message, "error");
       else { show("Exercise updated"); resetForm(); load(); }
     } else {
@@ -402,24 +461,104 @@ function ExercisesTab() {
   };
 
   const isUploading = ["requesting", "uploading", "processing"].includes(uploadStatus);
+  const bulkDone = bulkItems.filter((i) => i.status === "done").length;
 
   return (
     <>
       {toast && <Toast msg={toast.msg} type={toast.type} />}
       <div className="space-y-6">
         {/* Toolbar */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-bold text-zinc-100">
             Exercises ({exercises.length})
           </h2>
           {!showForm && (
-            <button onClick={() => setShowForm(true)} className={btnPrimary} style={{ backgroundColor: ACCENT }}>
-              + Add Exercise
-            </button>
+            <div className="flex items-center gap-2">
+              <label className={`${btnGhost} cursor-pointer ${bulkRunning ? "opacity-40 pointer-events-none" : ""}`}>
+                <span>Upload Multiple</span>
+                <input
+                  type="file"
+                  accept="video/mp4"
+                  multiple
+                  className="sr-only"
+                  disabled={bulkRunning}
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      handleBulkFiles(e.target.files);
+                    }
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              <button
+                onClick={() => setShowForm(true)}
+                className={btnPrimary}
+                style={{ backgroundColor: ACCENT }}
+              >
+                + Add Exercise
+              </button>
+            </div>
           )}
         </div>
 
-        {/* Form */}
+        {/* Bulk upload progress */}
+        {bulkItems.length > 0 && (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+            <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {bulkRunning && (
+                  <div className="w-3 h-3 border-2 border-zinc-600 border-t-zinc-300 rounded-full animate-spin shrink-0" />
+                )}
+                <span className="text-sm font-semibold text-zinc-100">
+                  Bulk Upload — {bulkDone}/{bulkItems.length} done
+                </span>
+              </div>
+              {!bulkRunning && (
+                <button
+                  onClick={() => setBulkItems([])}
+                  className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  Dismiss
+                </button>
+              )}
+            </div>
+            <div className="divide-y divide-zinc-800/60">
+              {bulkItems.map((item) => (
+                <div key={item.key} className="flex items-center gap-3 px-5 py-2.5">
+                  {/* Status icon */}
+                  <div className="shrink-0 w-4 flex items-center justify-center">
+                    {item.status === "pending" && (
+                      <div className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
+                    )}
+                    {(item.status === "uploading" || item.status === "processing") && (
+                      <div className="w-3 h-3 border border-zinc-600 border-t-zinc-300 rounded-full animate-spin" />
+                    )}
+                    {item.status === "done" && (
+                      <svg className="w-3.5 h-3.5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                    {item.status === "error" && (
+                      <svg className="w-3.5 h-3.5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                  <span className="flex-1 text-sm text-zinc-100 truncate">{item.name}</span>
+                  <span className={`text-xs shrink-0 ${
+                    item.status === "done" ? "text-green-500" :
+                    item.status === "error" ? "text-red-400" :
+                    "text-zinc-500"
+                  }`}>
+                    {item.message}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Single exercise form */}
         {showForm && (
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
             <h3 className="font-semibold text-zinc-100 mb-5">
@@ -439,15 +578,11 @@ function ExercisesTab() {
                 <Field label="Category">
                   <select
                     value={form.category}
-                    onChange={(e) =>
-                      setForm({ ...form, category: e.target.value })
-                    }
+                    onChange={(e) => setForm({ ...form, category: e.target.value })}
                     className={inp}
                   >
                     {CATEGORIES.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
+                      <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
                 </Field>
@@ -501,9 +636,7 @@ function ExercisesTab() {
               <Field label="Description">
                 <textarea
                   value={form.description}
-                  onChange={(e) =>
-                    setForm({ ...form, description: e.target.value })
-                  }
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
                   className={`${inp} h-20 resize-none`}
                   placeholder="Short description of the movement..."
                 />
@@ -552,12 +685,8 @@ function ExercisesTab() {
               <tbody className="divide-y divide-zinc-800">
                 {exercises.map((ex) => (
                   <tr key={ex.id} className="hover:bg-zinc-800/50 transition-colors">
-                    <td className="px-6 py-3 font-medium text-zinc-100">
-                      {ex.name}
-                    </td>
-                    <td className="px-6 py-3 text-zinc-400 hidden sm:table-cell">
-                      {ex.category}
-                    </td>
+                    <td className="px-6 py-3 font-medium text-zinc-100">{ex.name}</td>
+                    <td className="px-6 py-3 text-zinc-400 hidden sm:table-cell">{ex.category}</td>
                     <td className="px-6 py-3 hidden md:table-cell">
                       {ex.mux_playback_id ? (
                         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-300 bg-zinc-800 border border-zinc-700 px-2 py-0.5 rounded-full">
