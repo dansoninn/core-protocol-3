@@ -380,7 +380,7 @@ export default function DayClient({
                                     )}
                                   </div>
                                 </div>
-                                {ex.video_url && (
+                                {ex.mux_playback_id && (
                                   <div className="w-8 h-8 rounded-xl bg-zinc-100 group-hover:bg-zinc-200 flex items-center justify-center transition-colors shrink-0">
                                     <svg
                                       className="w-4 h-4 text-zinc-600"

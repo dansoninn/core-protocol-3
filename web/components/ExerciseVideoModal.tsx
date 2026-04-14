@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import MuxPlayer from "@mux/mux-player-react";
 import type { DbExercise } from "@/types";
 
 interface Props {
@@ -8,11 +9,6 @@ interface Props {
   onClose: () => void;
 }
 
-/**
- * Modal that embeds a YouTube iframe for the given exercise.
- * The video src is currently a YouTube embed URL — when moving to
- * Supabase Storage, swap the <iframe> for a <video> tag here.
- */
 export default function ExerciseVideoModal({ exercise, onClose }: Props) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -64,20 +60,13 @@ export default function ExerciseVideoModal({ exercise, onClose }: Props) {
           </button>
         </div>
 
-        {/* Video — swap <iframe> for <video> when migrating to Supabase Storage */}
-        {exercise.video_url ? (
-          <div
-            className="relative w-full bg-black"
-            style={{ paddingTop: "56.25%" }}
-          >
-            <iframe
-              src={`${exercise.video_url}?autoplay=1&rel=0`}
-              className="absolute inset-0 w-full h-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              title={exercise.name}
-            />
-          </div>
+        {/* Video */}
+        {exercise.mux_playback_id ? (
+          <MuxPlayer
+            playbackId={exercise.mux_playback_id}
+            streamType="on-demand"
+            className="w-full aspect-video"
+          />
         ) : (
           <div className="w-full bg-zinc-900 flex items-center justify-center h-48">
             <p className="text-zinc-500 text-sm">No video available</p>

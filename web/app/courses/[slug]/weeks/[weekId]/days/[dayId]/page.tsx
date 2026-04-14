@@ -46,6 +46,7 @@ interface TaskRow {
       category: string;
       description: string | null;
       video_url: string | null;
+      mux_playback_id: string | null;
     } | null;
   }[];
 }
@@ -137,7 +138,7 @@ export default async function DayPage({
       *,
       blocks(
         *,
-        exercises(id, name, category, description, video_url)
+        exercises(id, name, category, description, video_url, mux_playback_id)
       )
     `)
     .eq("day_id", params.dayId)

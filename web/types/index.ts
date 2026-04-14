@@ -54,4 +54,5 @@ export interface DbExercise {
   category: string;
   description: string | null;
   video_url: string | null;
+  mux_playback_id: string | null;
 }
