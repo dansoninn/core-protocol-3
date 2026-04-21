@@ -298,7 +298,7 @@ function ExercisesTab() {
   const [uploadFileName, setUploadFileName] = useState<string | null>(null);
   const [bulkItems, setBulkItems] = useState<BulkItem[]>([]);
   const [bulkRunning, setBulkRunning] = useState(false);
-  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [previewExercise, setPreviewExercise] = useState<DbExercise | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -691,7 +691,7 @@ function ExercisesTab() {
                     <td className="px-6 py-3 hidden md:table-cell">
                       {ex.mux_playback_id ? (
                         <button
-                          onClick={() => setPreviewId(ex.mux_playback_id)}
+                          onClick={() => setPreviewExercise(ex)}
                           className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-300 bg-zinc-800 border border-zinc-700 px-2 py-0.5 rounded-full hover:border-zinc-500 hover:text-white transition-colors"
                         >
                           <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
@@ -724,19 +724,22 @@ function ExercisesTab() {
       </div>
 
       {/* Video preview modal */}
-      {previewId && (
+      {previewExercise && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-          onClick={() => setPreviewId(null)}
+          onClick={() => setPreviewExercise(null)}
         >
           <div
-            className="w-full max-w-2xl rounded-2xl overflow-hidden bg-black shadow-2xl"
+            className="w-full max-w-2xl rounded-2xl overflow-hidden bg-zinc-900 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-end px-3 py-2 bg-zinc-900">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
+              <span className="text-sm font-semibold text-zinc-100 truncate pr-4">
+                {previewExercise.name}
+              </span>
               <button
-                onClick={() => setPreviewId(null)}
-                className="text-zinc-400 hover:text-white transition-colors"
+                onClick={() => setPreviewExercise(null)}
+                className="text-zinc-400 hover:text-white transition-colors shrink-0"
                 aria-label="Close preview"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -745,7 +748,7 @@ function ExercisesTab() {
               </button>
             </div>
             <MuxPlayer
-              playbackId={previewId}
+              playbackId={previewExercise.mux_playback_id!}
               streamType="on-demand"
               autoPlay
               style={{ width: "100%", aspectRatio: "16/9" }}
