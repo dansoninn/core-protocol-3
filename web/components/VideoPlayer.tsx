@@ -12,7 +12,7 @@ export default function VideoPlayer({ url }: Props) {
     <MuxPlayer
       playbackId={url}
       streamType="on-demand"
-      className="w-full aspect-video"
+      style={{ width: "100%", aspectRatio: "16/9" }}
     />
   );
 }

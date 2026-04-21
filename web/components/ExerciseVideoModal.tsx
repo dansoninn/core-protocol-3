@@ -65,7 +65,7 @@ export default function ExerciseVideoModal({ exercise, onClose }: Props) {
           <MuxPlayer
             playbackId={exercise.mux_playback_id}
             streamType="on-demand"
-            className="w-full aspect-video"
+            style={{ width: "100%", aspectRatio: "16/9" }}
           />
         ) : (
           <div className="w-full bg-zinc-900 flex items-center justify-center h-48">
