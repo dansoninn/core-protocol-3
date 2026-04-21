@@ -380,51 +380,50 @@ function ExercisesTab() {
         prev.map((it) => (it.key === key ? { ...it, ...patch } : it))
       );
 
-    await Promise.all(
-      Array.from(files).map(async (file) => {
-        const key = file.name;
-        const name = file.name.replace(/\.mp4$/i, "").replace(/[-_]/g, " ").trim();
-        try {
-          update(key, { status: "uploading", message: "Requesting slot…" });
-          const slotRes = await fetch("/api/mux/upload", { method: "POST" });
-          if (!slotRes.ok) throw new Error("Failed to create upload slot");
-          const { uploadId, uploadUrl } = await slotRes.json();
+    for (const file of Array.from(files)) {
+      const key = file.name;
+      const name = file.name.replace(/\.mp4$/i, "").replace(/[-_]/g, " ").trim();
+      try {
+        update(key, { status: "uploading", message: "Requesting slot…" });
+        const slotRes = await fetch("/api/mux/upload", { method: "POST" });
+        const slotData = await slotRes.json();
+        if (!slotRes.ok) throw new Error(slotData.error ?? "Failed to create upload slot");
+        const { uploadId, uploadUrl } = slotData;
 
-          update(key, { message: "Uploading…" });
-          const putRes = await fetch(uploadUrl, { method: "PUT", body: file });
-          if (!putRes.ok) throw new Error(`Upload failed (${putRes.status})`);
+        update(key, { message: "Uploading…" });
+        const putRes = await fetch(uploadUrl, { method: "PUT", body: file });
+        if (!putRes.ok) throw new Error(`Upload failed (${putRes.status})`);
 
-          update(key, { status: "processing", message: "Processing…" });
-          let assetId: string | null = null;
-          let playbackId: string | null = null;
-          for (let i = 0; i < 30; i++) {
-            await new Promise((r) => setTimeout(r, 2000));
-            const pollRes = await fetch(`/api/mux/upload?uploadId=${uploadId}`);
-            const data = await pollRes.json();
-            if (data.status === "errored") throw new Error(data.error ?? "Mux error");
-            if (data.playbackId) { assetId = data.assetId; playbackId = data.playbackId; break; }
-          }
-          if (!playbackId) throw new Error("Timed out");
-
-          update(key, { message: "Saving…" });
-          const { error } = await supabase.from("exercises").insert({
-            name,
-            category: "Óflokkað",
-            description: "",
-            mux_asset_id: assetId,
-            mux_playback_id: playbackId,
-          });
-          if (error) throw new Error(error.message);
-
-          update(key, { status: "done", message: "Done" });
-        } catch (err) {
-          update(key, {
-            status: "error",
-            message: err instanceof Error ? err.message : "Failed",
-          });
+        update(key, { status: "processing", message: "Processing…" });
+        let assetId: string | null = null;
+        let playbackId: string | null = null;
+        for (let i = 0; i < 30; i++) {
+          await new Promise((r) => setTimeout(r, 2000));
+          const pollRes = await fetch(`/api/mux/upload?uploadId=${uploadId}`);
+          const data = await pollRes.json();
+          if (data.status === "errored") throw new Error(data.error ?? "Mux error");
+          if (data.playbackId) { assetId = data.assetId; playbackId = data.playbackId; break; }
         }
-      })
-    );
+        if (!playbackId) throw new Error("Timed out");
+
+        update(key, { message: "Saving…" });
+        const { error } = await supabase.from("exercises").insert({
+          name,
+          category: "Óflokkað",
+          description: "",
+          mux_asset_id: assetId,
+          mux_playback_id: playbackId,
+        });
+        if (error) throw new Error(error.message);
+
+        update(key, { status: "done", message: "Done" });
+      } catch (err) {
+        update(key, {
+          status: "error",
+          message: err instanceof Error ? err.message : "Failed",
+        });
+      }
+    }
 
     setBulkRunning(false);
     load();

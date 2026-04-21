@@ -8,18 +8,27 @@ const mux = new Mux({
 
 // Create a direct upload slot — client PUTs the file to the returned uploadUrl
 export async function POST() {
-  const upload = await mux.video.uploads.create({
-    cors_origin: '*',
-    new_asset_settings: {
-      playback_policy: ['public'],
-      encoding_tier: 'baseline',
-    },
-  })
+  try {
+    const upload = await mux.video.uploads.create({
+      cors_origin: '*',
+      new_asset_settings: {
+        playback_policy: ['public'],
+        encoding_tier: 'baseline',
+      },
+    })
 
-  return NextResponse.json({
-    uploadId: upload.id,
-    uploadUrl: upload.url,
-  })
+    return NextResponse.json({
+      uploadId: upload.id,
+      uploadUrl: upload.url,
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[mux/upload] Failed to create upload slot:', message)
+    return NextResponse.json(
+      { error: `Mux error: ${message}` },
+      { status: 500 }
+    )
+  }
 }
 
 // Poll for upload → asset readiness; returns playbackId once ready, or status/error info
