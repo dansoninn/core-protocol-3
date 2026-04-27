@@ -19,7 +19,6 @@ interface CourseRow {
   category: string; cover_image: string | null; instructor: string | null;
   weeks: WeekRow[];
 }
-interface PurchaseRow { courses: CourseRow; }
 interface ProgressRow { block_id: string; completed_at: string; }
 
 const DAY_ABBREVS = ["MÁN", "ÞRI", "MIÐ", "FIM", "FÖS", "LAU", "SUN"];
@@ -77,11 +76,20 @@ export default async function DashboardPage() {
     user.email?.split("@")[0] ||
     "Vinur";
 
-  // Purchases with full course structure
-  const { data: purchaseRows } = await supabase
+  // Step 1: enrollment check — simple query, no joins
+  const { data: purchaseData } = await supabase
     .from("purchases")
-    .select(`
-      courses (
+    .select("course_id")
+    .eq("user_id", user.id);
+
+  const courseIds = (purchaseData ?? []).map((p: { course_id: string }) => p.course_id);
+
+  // Step 2: fetch full course data only if enrolled
+  let coursesData: CourseRow[] = [];
+  if (courseIds.length > 0) {
+    const { data: coursesRaw } = await supabase
+      .from("courses")
+      .select(`
         id, title, slug, category, cover_image, instructor,
         weeks (
           id, title, order_index,
@@ -93,14 +101,10 @@ export default async function DashboardPage() {
             )
           )
         )
-      )
-    `)
-    .eq("user_id", user.id);
-
-  // Filter out any rows where the courses join returned null
-  const purchases = ((purchaseRows as unknown as PurchaseRow[]) ?? []).filter(
-    (p) => p.courses != null
-  );
+      `)
+      .in("id", courseIds);
+    coursesData = (coursesRaw as unknown as CourseRow[]) ?? [];
+  }
 
   // Progress
   const { data: progressRaw } = await supabase
@@ -161,8 +165,7 @@ export default async function DashboardPage() {
     allSortedDays: (DayRow & { weekId: string; weekNum: number })[];
   };
 
-  const enrichedCourses: EnrichedCourse[] = purchases.map((p) => {
-    const course = p.courses;
+  const enrichedCourses: EnrichedCourse[] = coursesData.map((course) => {
     const sortedWeeks = [...(course.weeks ?? [])].sort(
       (a, b) => a.order_index - b.order_index
     );
@@ -266,7 +269,7 @@ export default async function DashboardPage() {
 
   // Browse courses if not enrolled
   let browseCourses: { id: string; title: string; slug: string; category: string; price: number; cover_image: string | null }[] = [];
-  if (purchases.length === 0) {
+  if (courseIds.length === 0) {
     const { data } = await supabase
       .from("courses")
       .select("id, title, slug, category, price, cover_image")
