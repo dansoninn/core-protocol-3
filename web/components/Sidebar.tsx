@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, BookOpen, Dumbbell, User, ShieldCheck, LogOut } from "lucide-react";
+import { ShieldCheck, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 interface Props {
@@ -11,13 +11,6 @@ interface Props {
   userFullName?: string | null;
   isAdmin?: boolean;
 }
-
-const navItems = [
-  { label: "Heim", href: "/dashboard", Icon: Home },
-  { label: "Námskeið", href: "/courses", Icon: BookOpen },
-  { label: "Æfingar", href: "/exercises", Icon: Dumbbell },
-  { label: "Prófíll", href: "/profile", Icon: User },
-];
 
 export default function Sidebar({ userEmail, userFullName: userFullNameProp, isAdmin }: Props) {
   const pathname = usePathname();
@@ -37,12 +30,11 @@ export default function Sidebar({ userEmail, userFullName: userFullNameProp, isA
         .select("full_name")
         .eq("id", user.id)
         .single();
-      // Always apply the result so we reflect the DB value, even null
       setFullName(data?.full_name?.trim() || null);
     })();
   }, [userEmail]);
 
-  // Only render sidebar on admin routes
+  // Only render on admin routes
   if (!pathname.startsWith("/admin")) return null;
 
   const handleSignOut = async () => {
@@ -67,47 +59,19 @@ export default function Sidebar({ userEmail, userFullName: userFullNameProp, isA
   return (
     <aside
       className="flex flex-col fixed left-0 top-0 h-screen w-60 z-40"
-      style={{ backgroundColor: "#0d1117" }}
+      style={{ backgroundColor: "#0d1117", borderRight: "1px solid rgba(255,255,255,0.06)" }}
     >
       {/* Logo */}
       <div className="px-5 py-6 shrink-0">
-        <Link
-          href="/"
-          className="text-white font-semibold text-base tracking-tight hover:opacity-80 transition-opacity"
-        >
+        <p className="text-white font-semibold text-base tracking-tight">
           Core Protocol
-        </Link>
+        </p>
+        <p className="text-zinc-500 text-xs mt-0.5">Admin Panel</p>
       </div>
 
-      {/* Main nav */}
+      {/* Admin nav */}
       <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
-        {navItems.map(({ label, href, Icon }) => {
-          const active = isActive(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm ${
-                active
-                  ? "bg-white/10 text-white font-medium"
-                  : "text-zinc-400 hover:text-zinc-200 hover:bg-white/5 font-normal"
-              }`}
-            >
-              <Icon
-                className={`w-[18px] h-[18px] shrink-0 transition-opacity ${
-                  active ? "opacity-100" : "opacity-60"
-                }`}
-                strokeWidth={active ? 2 : 1.5}
-              />
-              {label}
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* Admin link */}
-      {isAdmin && (
-        <div className="px-3 py-3 border-t border-white/10">
+        {isAdmin && (
           <Link
             href="/admin"
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm ${
@@ -124,8 +88,8 @@ export default function Sidebar({ userEmail, userFullName: userFullNameProp, isA
             />
             Admin
           </Link>
-        </div>
-      )}
+        )}
+      </nav>
 
       {/* User footer */}
       {userEmail && (
@@ -150,18 +114,6 @@ export default function Sidebar({ userEmail, userFullName: userFullNameProp, isA
             <LogOut className="w-[18px] h-[18px] opacity-60 shrink-0" strokeWidth={1.5} />
             Útskráning
           </button>
-        </div>
-      )}
-
-      {/* Not logged in footer */}
-      {!userEmail && (
-        <div className="px-3 py-4 border-t border-white/10 shrink-0">
-          <Link
-            href="/auth/login"
-            className="flex items-center justify-center w-full px-3 py-2 rounded-xl bg-white/10 text-white text-sm font-medium hover:bg-white/15 transition-all"
-          >
-            Innskráning
-          </Link>
         </div>
       )}
     </aside>
