@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { Inter, Bebas_Neue } from "next/font/google";
 import "./globals.css";
-import Navbar from "@/components/Navbar";
+import TopBar from "@/components/TopBar";
 import BottomNav from "@/components/BottomNav";
 import Sidebar from "@/components/Sidebar";
+import ContentWrapper from "@/components/ContentWrapper";
 import { createClient } from "@/lib/supabase/server";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -44,24 +45,25 @@ export default async function RootLayout({
   return (
     <html lang="is">
       <body className={`${inter.className} ${bebasNeue.variable} min-h-screen`}>
-        {/* Top navbar — mobile only */}
-        <div className="md:hidden">
-          <Navbar userEmail={user?.email ?? null} userFullName={fullName} />
-        </div>
-
-        {/* Desktop sidebar */}
+        {/* Admin sidebar — only renders itself on /admin routes */}
         <Sidebar
           userEmail={user?.email ?? null}
           userFullName={fullName}
           isAdmin={isAdmin}
         />
 
-        {/* Main content — offset for sidebar on desktop, padded for bottom nav on mobile */}
-        <div className="md:ml-60 pb-20 md:pb-0">
-          {children}
-        </div>
+        {/* Top bar — user-facing pages (hides itself on admin/auth/day-view) */}
+        <TopBar
+          userEmail={user?.email ?? null}
+          userFullName={fullName}
+        />
 
-        {/* Bottom nav — mobile only */}
+        {/* Content — offset for sidebar on admin desktop */}
+        <ContentWrapper>
+          {children}
+        </ContentWrapper>
+
+        {/* Bottom nav — all screen sizes, hidden on admin */}
         <BottomNav />
       </body>
     </html>
