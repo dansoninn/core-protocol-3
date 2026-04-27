@@ -433,12 +433,14 @@ export default function DayClient({
             <div
               style={{
                 display: "flex",
-                gap: 6,
+                gap: 5,
                 overflowX: "auto",
                 maxWidth: 672,
                 margin: "0 auto",
                 paddingBottom: 8,
+                scrollbarWidth: "none",
               }}
+              className="[&::-webkit-scrollbar]:hidden"
             >
               {weekDays.map((wd) => {
                 const abbrev =
@@ -477,8 +479,8 @@ export default function DayClient({
                     style={{
                       ...pillStyle,
                       borderRadius: 12,
-                      padding: "10px 4px",
-                      minWidth: 48,
+                      padding: "10px 6px",
+                      minWidth: 44,
                       display: "flex",
                       flexDirection: "column",
                       alignItems: "center",
@@ -490,7 +492,7 @@ export default function DayClient({
                   >
                     <span
                       style={{
-                        fontSize: 10,
+                        fontSize: 9,
                         fontWeight: 700,
                         letterSpacing: "0.08em",
                         textTransform: "uppercase",
@@ -502,10 +504,10 @@ export default function DayClient({
                     </span>
                     <span
                       style={{
-                        fontSize: 11,
-                        fontWeight: 600,
+                        fontFamily: "var(--font-bebas)",
+                        fontSize: 20,
                         color: numColor,
-                        marginTop: 4,
+                        marginTop: 3,
                         lineHeight: 1,
                       }}
                     >
@@ -528,14 +530,14 @@ export default function DayClient({
           {totalExerciseCount > 0 && (
             <div
               style={{
-                background: C.card,
-                border: `1px solid ${C.border}`,
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
                 borderRadius: 16,
                 padding: "16px 20px",
                 marginBottom: 16,
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                 {/* Ring */}
                 <svg
                   width="42"

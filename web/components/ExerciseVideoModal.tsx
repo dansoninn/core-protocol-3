@@ -31,18 +31,43 @@ export default function ExerciseVideoModal({ exercise, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden"
+        style={{ background: "var(--bg)", borderRadius: 16 }}
+        className="shadow-2xl w-full max-w-xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100">
-          <h2 className="font-bold text-zinc-900 text-lg leading-snug pr-4">
+        <div
+          style={{
+            background: "var(--surface)",
+            borderBottom: "1px solid var(--border)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "16px 20px",
+          }}
+        >
+          <h2 style={{ fontWeight: 700, color: "var(--text)", fontSize: 17, lineHeight: 1.35, paddingRight: 16 }}>
             {exercise.name}
           </h2>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-zinc-100 transition-colors text-zinc-500 shrink-0"
+            style={{
+              width: 32,
+              height: 32,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "50%",
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--muted2)",
+              flexShrink: 0,
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface2)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
           >
             <svg
               className="w-4 h-4"
@@ -75,8 +100,8 @@ export default function ExerciseVideoModal({ exercise, onClose }: Props) {
 
         {/* Description */}
         {exercise.description && (
-          <div className="px-5 py-4">
-            <p className="text-sm text-zinc-600 leading-relaxed">
+          <div style={{ padding: "16px 20px" }}>
+            <p style={{ fontSize: 13, color: "var(--muted2)", lineHeight: 1.6 }}>
               {exercise.description}
             </p>
           </div>
