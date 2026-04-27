@@ -9,6 +9,17 @@ import type { DbTask, DbExercise } from "@/types";
 
 const DAY_ABBREVS = ["MÁN", "ÞRI", "MIÐ", "FIM", "FÖS", "LAU", "SUN"];
 
+const C = {
+  page: "#0a0c0f",
+  card: "#111318",
+  row: "#161a21",
+  body: "#f0f2f5",
+  muted: "#8892a0",
+  blue: "#3b6bff",
+  teal: "#2dd4a0",
+  border: "rgba(255,255,255,0.06)",
+};
+
 interface DayNavItem {
   id: string;
   title: string;
@@ -32,7 +43,12 @@ interface Props {
   weekNumber: number;
   totalWeeks: number;
   weekDays: WeekDay[];
-  day: { id: string; title: string; description: string | null; order_index: number };
+  day: {
+    id: string;
+    title: string;
+    description: string | null;
+    order_index: number;
+  };
   tasks: DbTask[];
   userId: string;
   initialCompletedBlockIds: string[];
@@ -40,7 +56,20 @@ interface Props {
   nextDay: DayNavItem | null;
 }
 
-function ProgressRing({
+function getTaskBadge(name: string): { bg: string; color: string } {
+  const lower = name.toLowerCase();
+  if (lower.includes("upphitun"))
+    return { bg: "rgba(255,140,66,0.15)", color: "#ff8c42" };
+  if (lower.includes("aðal") || lower.includes("adal"))
+    return { bg: "rgba(59,107,255,0.12)", color: "#3b6bff" };
+  if (lower.includes("block") || lower.includes("blokk"))
+    return { bg: "rgba(45,212,160,0.10)", color: "#2dd4a0" };
+  if (lower.includes("texti") || lower.includes("text"))
+    return { bg: C.row, color: C.muted };
+  return { bg: "rgba(59,107,255,0.12)", color: C.blue };
+}
+
+function TaskProgressRing({
   done,
   total,
   color,
@@ -86,7 +115,7 @@ function ProgressRing({
         fill="none"
         stroke={color}
         strokeWidth="2.5"
-        opacity="0.25"
+        opacity="0.2"
       />
       {done > 0 && (
         <circle
@@ -101,6 +130,51 @@ function ProgressRing({
         />
       )}
     </svg>
+  );
+}
+
+function PrescriptionPill({
+  value,
+  label,
+}: {
+  value: string;
+  label: string;
+}) {
+  return (
+    <div
+      style={{
+        background: C.page,
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: 8,
+        padding: "6px 10px",
+        minWidth: 44,
+        textAlign: "center",
+      }}
+    >
+      <div
+        style={{
+          fontFamily: "var(--font-bebas)",
+          fontSize: 20,
+          lineHeight: 1,
+          color: C.body,
+          letterSpacing: "0.02em",
+        }}
+      >
+        {value}
+      </div>
+      <div
+        style={{
+          fontSize: 10,
+          color: C.muted,
+          marginTop: 2,
+          fontWeight: 500,
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+        }}
+      >
+        {label}
+      </div>
+    </div>
   );
 }
 
@@ -188,364 +262,939 @@ export default function DayClient({
     setSaving(null);
   };
 
+  const progressPct =
+    totalExerciseCount > 0
+      ? (completedExerciseCount / totalExerciseCount) * 100
+      : 0;
+
   return (
     <>
-      {/* ── HERO ─────────────────────────────────────────────────────────── */}
-      <div className="relative w-full h-56 sm:h-72 bg-zinc-900 overflow-hidden">
-        {coverImage && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={coverImage}
-            alt={courseTitle}
-            className="absolute inset-0 w-full h-full object-cover opacity-40"
-          />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/10 to-black/80" />
+      <div style={{ background: C.page, minHeight: "100vh" }}>
 
-        {/* Back button */}
-        <div className="absolute top-4 left-4 z-10">
-          <Link
-            href={`/courses/${courseSlug}`}
-            className="inline-flex items-center gap-1.5 text-white/80 hover:text-white text-sm font-medium transition-colors bg-black/30 hover:bg-black/50 px-3 py-1.5 rounded-full backdrop-blur-sm"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-            {courseTitle}
-          </Link>
-        </div>
-
-        {/* Category badge */}
-        {courseCategory && (
-          <div className="absolute top-4 right-4 z-10">
-            <span className="inline-block text-[10px] font-bold bg-white/15 text-white px-2.5 py-1 rounded-full backdrop-blur-sm tracking-wider uppercase">
-              {courseCategory}
-            </span>
-          </div>
-        )}
-
-        {/* Hero text */}
-        <div className="absolute bottom-0 left-0 right-0 px-4 sm:px-6 pb-5">
-          <p className="text-white/60 text-xs font-semibold tracking-widest uppercase mb-1">
-            Vika {weekNumber} / {totalWeeks}
-          </p>
-          <h1
-            className="text-5xl sm:text-6xl text-white leading-none tracking-wide uppercase"
-            style={{ fontFamily: "var(--font-bebas)" }}
-          >
-            {day.title}
-          </h1>
-          {courseInstructor && (
-            <p className="text-white/50 text-xs mt-1.5">{courseInstructor}</p>
+        {/* ── HERO ──────────────────────────────────────────────────────── */}
+        <div
+          style={{ position: "relative", overflow: "hidden", minHeight: 240 }}
+          className="flex flex-col justify-end"
+        >
+          {/* Cover image */}
+          {coverImage && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={coverImage}
+              alt={courseTitle}
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                opacity: 0.45,
+              }}
+            />
           )}
-        </div>
-      </div>
 
-      {/* ── WEEK STRIP ───────────────────────────────────────────────────── */}
-      {weekDays.length > 0 && (
-        <div className="sticky top-16 md:top-0 z-20 bg-zinc-900 border-b border-zinc-800">
-          <div className="flex items-center gap-1 px-3 py-2 overflow-x-auto max-w-2xl mx-auto">
-            {weekDays.map((wd) => {
-              const abbrev = DAY_ABBREVS[wd.order_index] ?? `D${wd.order_index + 1}`;
-              const isCurrent = wd.id === day.id;
-              return (
-                <Link
-                  key={wd.id}
-                  href={`/courses/${courseSlug}/weeks/${weekId}/days/${wd.id}`}
-                  className={`flex flex-col items-center px-3.5 py-1.5 rounded-lg transition-colors shrink-0 min-w-[48px] ${
-                    isCurrent
-                      ? "bg-white text-zinc-900"
-                      : "text-zinc-400 hover:text-white hover:bg-zinc-800"
-                  }`}
-                >
-                  <span className="text-[10px] font-bold tracking-wider uppercase leading-none">
-                    {abbrev}
-                  </span>
-                  <span
-                    className={`text-[10px] font-medium mt-0.5 leading-none ${
-                      isCurrent ? "text-zinc-500" : "text-zinc-600"
-                    }`}
-                  >
-                    {wd.order_index + 1}
-                  </span>
-                </Link>
-              );
-            })}
+          {/* Gradient overlay */}
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background:
+                "linear-gradient(to bottom, rgba(10,12,15,0.2) 0%, rgba(10,12,15,0.92) 100%)",
+            }}
+          />
+
+          {/* Back button */}
+          <div style={{ position: "absolute", top: 16, left: 16, zIndex: 10 }}>
+            <Link
+              href={`/courses/${courseSlug}`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                color: "rgba(240,242,245,0.75)",
+                fontSize: 13,
+                fontWeight: 500,
+                background: "rgba(10,12,15,0.5)",
+                backdropFilter: "blur(8px)",
+                padding: "6px 12px 6px 8px",
+                borderRadius: 999,
+                border: "1px solid rgba(255,255,255,0.08)",
+                textDecoration: "none",
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+              {courseTitle}
+            </Link>
           </div>
-        </div>
-      )}
 
-      {/* ── MAIN CONTENT ─────────────────────────────────────────────────── */}
-      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-4 pb-28 md:pb-12">
+          {/* Category badge */}
+          {courseCategory && (
+            <div
+              style={{ position: "absolute", top: 16, right: 16, zIndex: 10 }}
+            >
+              <span
+                style={{
+                  display: "inline-block",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  background: "rgba(255,255,255,0.1)",
+                  color: "rgba(240,242,245,0.8)",
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  backdropFilter: "blur(8px)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                }}
+              >
+                {courseCategory}
+              </span>
+            </div>
+          )}
 
-        {/* Day summary card */}
-        {(day.description || totalExerciseCount > 0) && (
-          <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5">
+          {/* Hero text */}
+          <div
+            style={{ position: "relative", zIndex: 1, padding: "0 20px 24px" }}
+            className="sm:px-6"
+          >
+            <p
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                color: C.blue,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                marginBottom: 6,
+              }}
+            >
+              Vika {weekNumber} / {totalWeeks}
+            </p>
+            <h1
+              style={{
+                fontFamily: "var(--font-bebas)",
+                fontSize: 48,
+                lineHeight: 1,
+                color: "#ffffff",
+                letterSpacing: "0.03em",
+                textTransform: "uppercase",
+                marginBottom: day.description ? 10 : 0,
+              }}
+            >
+              {day.title}
+            </h1>
             {day.description && (
-              <p className="text-sm text-zinc-600 leading-relaxed whitespace-pre-line mb-4">
+              <p
+                style={{
+                  fontSize: 13,
+                  color: C.muted,
+                  lineHeight: 1.6,
+                  whiteSpace: "pre-line",
+                  maxWidth: 480,
+                }}
+              >
                 {day.description}
               </p>
             )}
-            {totalExerciseCount > 0 && (
-              <div className="flex items-center gap-3">
-                <div className="flex-1 bg-zinc-100 rounded-full h-1.5 overflow-hidden">
-                  <div
-                    className="h-full bg-zinc-900 rounded-full transition-all duration-500"
-                    style={{
-                      width: `${(completedExerciseCount / totalExerciseCount) * 100}%`,
-                    }}
-                  />
-                </div>
-                <span className="text-xs font-semibold text-zinc-500 tabular-nums whitespace-nowrap shrink-0">
-                  {completedExerciseCount} / {totalExerciseCount} æfingar
-                </span>
-              </div>
+            {courseInstructor && (
+              <p
+                style={{
+                  fontSize: 11,
+                  color: "rgba(136,146,160,0.7)",
+                  marginTop: 8,
+                }}
+              >
+                {courseInstructor}
+              </p>
             )}
           </div>
-        )}
+        </div>
 
-        {/* Task accordion */}
-        {tasks.length === 0 ? (
-          <p className="text-zinc-400 text-sm text-center py-10">
-            Engar æfingar fundust fyrir þennan dag.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {tasks.map((task) => {
-              const isExpanded = expandedTaskIds.has(task.id);
-              const taskExBlocks = task.blocks.filter(
-                (b) => b.type === "exercise"
-              );
-              const taskDone = taskExBlocks.filter((b) =>
-                completedIds.has(b.id)
-              ).length;
-              const taskTotal = taskExBlocks.length;
-              const taskComplete = taskTotal > 0 && taskDone === taskTotal;
+        {/* ── WEEK STRIP ─────────────────────────────────────────────────── */}
+        {weekDays.length > 0 && (
+          <div
+            style={{
+              background: C.page,
+              padding: "12px 12px 4px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                gap: 6,
+                overflowX: "auto",
+                maxWidth: 672,
+                margin: "0 auto",
+                paddingBottom: 8,
+              }}
+            >
+              {weekDays.map((wd) => {
+                const abbrev =
+                  DAY_ABBREVS[wd.order_index] ?? `D${wd.order_index + 1}`;
+                const isCurrent = wd.id === day.id;
+                const isPast = wd.order_index < day.order_index;
+                const isLocked = wd.order_index > day.order_index;
 
-              return (
-                <div
-                  key={task.id}
-                  className="bg-white rounded-2xl shadow-sm border border-zinc-100 overflow-hidden"
-                >
-                  {/* Color accent bar */}
-                  <div className="h-1 w-full" style={{ backgroundColor: task.color }} />
+                let pillStyle: React.CSSProperties = {
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                };
+                let abbrevColor = C.muted;
+                let numColor = C.muted;
 
-                  {/* Accordion header */}
-                  <button
-                    onClick={(e) => toggleTask(e, task.id)}
-                    className="w-full flex items-center justify-between px-5 py-4 text-left min-h-[54px]"
-                    aria-expanded={isExpanded}
+                if (isCurrent) {
+                  pillStyle = {
+                    background: "rgba(59,107,255,0.10)",
+                    border: "1px solid rgba(59,107,255,0.5)",
+                  };
+                  abbrevColor = C.blue;
+                  numColor = C.blue;
+                } else if (isPast) {
+                  pillStyle = {
+                    background: "rgba(45,212,160,0.07)",
+                    border: "1px solid rgba(45,212,160,0.28)",
+                  };
+                  abbrevColor = C.teal;
+                  numColor = C.teal;
+                }
+
+                return (
+                  <Link
+                    key={wd.id}
+                    href={`/courses/${courseSlug}/weeks/${weekId}/days/${wd.id}`}
+                    style={{
+                      ...pillStyle,
+                      borderRadius: 12,
+                      padding: "10px 4px",
+                      minWidth: 48,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      textDecoration: "none",
+                      flexShrink: 0,
+                      opacity: isLocked ? 0.28 : 1,
+                      transition: "opacity 0.15s",
+                    }}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <ProgressRing
-                        done={taskDone}
-                        total={taskTotal}
-                        color={task.color}
-                      />
-                      <span
-                        className={`font-semibold text-sm truncate ${
-                          taskComplete ? "text-zinc-400" : "text-zinc-900"
-                        }`}
-                      >
-                        {task.name}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0 ml-2">
-                      {taskTotal > 0 && !taskComplete && (
-                        <span className="text-xs font-medium tabular-nums text-zinc-400">
-                          {taskDone}/{taskTotal}
-                        </span>
-                      )}
-                      <svg
-                        className={`w-4 h-4 text-zinc-400 transition-transform duration-200 ${
-                          isExpanded ? "rotate-180" : ""
-                        }`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 9l-7 7-7-7"
-                        />
-                      </svg>
-                    </div>
-                  </button>
-
-                  {/* Expanded content */}
-                  {isExpanded && (
-                    <div className="border-t border-zinc-100">
-                      {/* Task video */}
-                      {task.video_url && (
-                        <div className="bg-black">
-                          <VideoPlayer url={task.video_url} title={task.name} />
-                        </div>
-                      )}
-
-                      {/* Blocks */}
-                      {task.blocks.length === 0 ? (
-                        <p className="px-5 py-6 text-sm text-zinc-400 text-center">
-                          Engar æfingar í þessum hóp.
-                        </p>
-                      ) : (
-                        <div className="divide-y divide-zinc-50">
-                          {task.blocks.map((block) => {
-                            if (block.type === "text") {
-                              return (
-                                <div key={block.id} className="px-5 py-4">
-                                  <p className="text-sm text-zinc-600 leading-relaxed whitespace-pre-line">
-                                    {block.content}
-                                  </p>
-                                </div>
-                              );
-                            }
-
-                            if (!block.exercises) return null;
-                            const ex = block.exercises;
-                            const done = completedIds.has(block.id);
-                            const isSaving = saving === block.id;
-
-                            const setsReps =
-                              block.sets && block.reps
-                                ? `${block.sets} × ${block.reps}`
-                                : block.sets || block.reps || null;
-                            const prescription = [setsReps, block.load]
-                              .filter(Boolean)
-                              .join(" — ");
-
-                            return (
-                              <div
-                                key={block.id}
-                                className="flex items-center gap-3 px-5 py-4 min-h-[56px]"
-                              >
-                                {/* Checkbox */}
-                                <button
-                                  onClick={(e) => handleToggle(e, block.id)}
-                                  disabled={isSaving}
-                                  className={`w-6 h-6 rounded-full border-2 shrink-0 flex items-center justify-center transition-all ${
-                                    done
-                                      ? "border-transparent bg-zinc-900"
-                                      : "border-zinc-300 hover:border-zinc-600"
-                                  } ${isSaving ? "opacity-50" : ""}`}
-                                  aria-label={done ? "Merkja ólokið" : "Merkja lokið"}
-                                >
-                                  {done && (
-                                    <svg
-                                      className="w-3 h-3 text-white"
-                                      fill="currentColor"
-                                      viewBox="0 0 20 20"
-                                    >
-                                      <path
-                                        fillRule="evenodd"
-                                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                        clipRule="evenodd"
-                                      />
-                                    </svg>
-                                  )}
-                                </button>
-
-                                {/* Exercise info — click opens modal */}
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    setActiveExercise(ex);
-                                  }}
-                                  className="flex-1 flex items-center justify-between gap-3 text-left group min-w-0"
-                                >
-                                  <div className="min-w-0">
-                                    <p
-                                      className={`text-sm font-semibold truncate transition-colors ${
-                                        done
-                                          ? "text-zinc-400 line-through"
-                                          : "text-zinc-900 group-hover:text-zinc-600"
-                                      }`}
-                                    >
-                                      {ex.name}
-                                    </p>
-                                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-zinc-100 text-zinc-500 uppercase tracking-wide">
-                                        {ex.category}
-                                      </span>
-                                      {prescription && (
-                                        <span className="text-xs text-zinc-400 font-medium">
-                                          {prescription}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  {ex.mux_playback_id && (
-                                    <div className="w-8 h-8 rounded-xl bg-zinc-100 group-hover:bg-zinc-200 flex items-center justify-center transition-colors shrink-0">
-                                      <svg
-                                        className="w-4 h-4 text-zinc-600"
-                                        fill="currentColor"
-                                        viewBox="0 0 20 20"
-                                      >
-                                        <path
-                                          fillRule="evenodd"
-                                          d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
-                                          clipRule="evenodd"
-                                        />
-                                      </svg>
-                                    </div>
-                                  )}
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                        color: abbrevColor,
+                        lineHeight: 1,
+                      }}
+                    >
+                      {abbrev}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: numColor,
+                        marginTop: 4,
+                        lineHeight: 1,
+                      }}
+                    >
+                      {wd.order_index + 1}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         )}
 
-        {/* Day complete banner */}
-        {allDone && (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+        {/* ── MAIN CONTENT ───────────────────────────────────────────────── */}
+        <main
+          style={{ maxWidth: 672, margin: "0 auto", padding: "16px 16px 96px" }}
+          className="sm:px-6"
+        >
+
+          {/* Day summary card */}
+          {totalExerciseCount > 0 && (
+            <div
+              style={{
+                background: C.card,
+                border: `1px solid ${C.border}`,
+                borderRadius: 16,
+                padding: "16px 20px",
+                marginBottom: 16,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                {/* Ring */}
                 <svg
-                  className="w-5 h-5 text-white"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
+                  width="42"
+                  height="42"
+                  viewBox="0 0 42 42"
+                  style={{ flexShrink: 0, transform: "rotate(-90deg)" }}
                 >
-                  <path
-                    fillRule="evenodd"
-                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                    clipRule="evenodd"
+                  <circle
+                    cx="21"
+                    cy="21"
+                    r="17"
+                    fill="none"
+                    stroke="rgba(59,107,255,0.15)"
+                    strokeWidth="3"
+                  />
+                  <circle
+                    cx="21"
+                    cy="21"
+                    r="17"
+                    fill="none"
+                    stroke={C.blue}
+                    strokeWidth="3"
+                    strokeDasharray={`${(progressPct / 100) * 2 * Math.PI * 17} ${2 * Math.PI * 17}`}
+                    strokeLinecap="round"
+                    style={{ transition: "stroke-dasharray 0.4s ease" }}
                   />
                 </svg>
-              </div>
-              <div>
-                <p className="font-bold text-emerald-800">Dagur lokinn!</p>
-                <p className="text-xs text-emerald-600 mt-0.5">
-                  Þú hefur lokið öllum æfingum dagsins.
-                </p>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      height: 5,
+                      background: "rgba(255,255,255,0.06)",
+                      borderRadius: 999,
+                      overflow: "hidden",
+                      marginBottom: 6,
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${progressPct}%`,
+                        background: `linear-gradient(90deg, ${C.blue}, ${C.teal})`,
+                        borderRadius: 999,
+                        transition: "width 0.4s ease",
+                      }}
+                    />
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: C.muted,
+                      fontWeight: 500,
+                    }}
+                  >
+                    {completedExerciseCount} / {totalExerciseCount} verkefni
+                  </span>
+                </div>
               </div>
             </div>
-            {nextDay ? (
-              <Link
-                href={`/courses/${courseSlug}/weeks/${nextDay.weekId}/days/${nextDay.id}`}
-                className="flex items-center justify-between w-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-3 rounded-xl transition-colors min-h-[44px]"
+          )}
+
+          {/* Task accordion */}
+          {tasks.length === 0 ? (
+            <p
+              style={{
+                color: C.muted,
+                fontSize: 14,
+                textAlign: "center",
+                padding: "40px 0",
+              }}
+            >
+              Engar æfingar fundust fyrir þennan dag.
+            </p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {tasks.map((task) => {
+                const isExpanded = expandedTaskIds.has(task.id);
+                const taskExBlocks = task.blocks.filter(
+                  (b) => b.type === "exercise"
+                );
+                const taskDone = taskExBlocks.filter((b) =>
+                  completedIds.has(b.id)
+                ).length;
+                const taskTotal = taskExBlocks.length;
+                const taskComplete = taskTotal > 0 && taskDone === taskTotal;
+                const badge = getTaskBadge(task.name);
+
+                return (
+                  <div
+                    key={task.id}
+                    style={{
+                      background: C.card,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 14,
+                      overflow: "hidden",
+                      borderLeft: `2px solid ${task.color}`,
+                    }}
+                  >
+                    {/* Accordion header */}
+                    <button
+                      onClick={(e) => toggleTask(e, task.id)}
+                      style={{
+                        width: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "14px 16px",
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        textAlign: "left",
+                        minHeight: 54,
+                        gap: 8,
+                      }}
+                      aria-expanded={isExpanded}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          minWidth: 0,
+                          flex: 1,
+                        }}
+                      >
+                        <TaskProgressRing
+                          done={taskDone}
+                          total={taskTotal}
+                          color={task.color}
+                        />
+                        <span
+                          style={{
+                            fontSize: 14,
+                            fontWeight: 500,
+                            color: taskComplete
+                              ? "rgba(240,242,245,0.35)"
+                              : C.body,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {task.name}
+                        </span>
+                        <span
+                          style={{
+                            background: badge.bg,
+                            color: badge.color,
+                            fontSize: 10,
+                            fontWeight: 600,
+                            padding: "2px 7px",
+                            borderRadius: 999,
+                            letterSpacing: "0.04em",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {task.name}
+                        </span>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {taskTotal > 0 && !taskComplete && (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 500,
+                              color: C.muted,
+                              fontVariantNumeric: "tabular-nums",
+                            }}
+                          >
+                            {taskDone}/{taskTotal}
+                          </span>
+                        )}
+                        <svg
+                          width="16"
+                          height="16"
+                          fill="none"
+                          stroke={C.muted}
+                          viewBox="0 0 24 24"
+                          style={{
+                            transition: "transform 0.2s",
+                            transform: isExpanded
+                              ? "rotate(180deg)"
+                              : "rotate(0deg)",
+                          }}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 9l-7 7-7-7"
+                          />
+                        </svg>
+                      </div>
+                    </button>
+
+                    {/* Expanded body */}
+                    {isExpanded && (
+                      <div
+                        style={{
+                          background: C.page,
+                          borderTop: `1px solid ${C.border}`,
+                        }}
+                      >
+                        {/* Task video */}
+                        {task.video_url && (
+                          <div style={{ background: "#000" }}>
+                            <VideoPlayer url={task.video_url} title={task.name} />
+                          </div>
+                        )}
+
+                        {/* Blocks */}
+                        {task.blocks.length === 0 ? (
+                          <p
+                            style={{
+                              padding: "24px 20px",
+                              fontSize: 13,
+                              color: C.muted,
+                              textAlign: "center",
+                            }}
+                          >
+                            Engar æfingar í þessum hóp.
+                          </p>
+                        ) : (
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 6,
+                              padding: "10px 10px",
+                            }}
+                          >
+                            {task.blocks.map((block) => {
+                              // ── TEXT / COACH NOTES BLOCK ──────────────────
+                              if (block.type === "text") {
+                                return (
+                                  <div
+                                    key={block.id}
+                                    style={{
+                                      background: C.row,
+                                      borderRadius: 11,
+                                      borderLeft: `2px solid ${C.blue}`,
+                                      padding: "12px 14px",
+                                    }}
+                                  >
+                                    <p
+                                      style={{
+                                        fontSize: 10,
+                                        fontWeight: 700,
+                                        color: C.blue,
+                                        letterSpacing: "0.1em",
+                                        textTransform: "uppercase",
+                                        marginBottom: 6,
+                                      }}
+                                    >
+                                      Leiðbeiningar
+                                    </p>
+                                    <p
+                                      style={{
+                                        fontSize: 13,
+                                        color: C.muted,
+                                        lineHeight: 1.6,
+                                        whiteSpace: "pre-line",
+                                      }}
+                                    >
+                                      {block.content}
+                                    </p>
+                                  </div>
+                                );
+                              }
+
+                              // ── EXERCISE BLOCK ────────────────────────────
+                              if (!block.exercises) return null;
+                              const ex = block.exercises;
+                              const done = completedIds.has(block.id);
+                              const isSaving = saving === block.id;
+
+                              return (
+                                <div
+                                  key={block.id}
+                                  style={{
+                                    background: C.row,
+                                    borderRadius: 10,
+                                    padding: "12px 14px",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: 10,
+                                    opacity: isSaving ? 0.6 : 1,
+                                    transition: "opacity 0.15s",
+                                  }}
+                                >
+                                  {/* Top: exercise name + play button */}
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "flex-start",
+                                      justifyContent: "space-between",
+                                      gap: 8,
+                                    }}
+                                  >
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        setActiveExercise(ex);
+                                      }}
+                                      style={{
+                                        background: "transparent",
+                                        border: "none",
+                                        cursor: "pointer",
+                                        padding: 0,
+                                        textAlign: "left",
+                                        flex: 1,
+                                        minWidth: 0,
+                                      }}
+                                    >
+                                      <p
+                                        style={{
+                                          fontSize: 13,
+                                          fontWeight: 500,
+                                          color: done
+                                            ? "rgba(240,242,245,0.35)"
+                                            : C.body,
+                                          textDecoration: done
+                                            ? "line-through"
+                                            : "none",
+                                          overflow: "hidden",
+                                          textOverflow: "ellipsis",
+                                          whiteSpace: "nowrap",
+                                        }}
+                                      >
+                                        {ex.name}
+                                      </p>
+                                      <span
+                                        style={{
+                                          display: "inline-block",
+                                          marginTop: 4,
+                                          fontSize: 9,
+                                          fontWeight: 600,
+                                          color: C.muted,
+                                          background: C.page,
+                                          padding: "2px 6px",
+                                          borderRadius: 999,
+                                          letterSpacing: "0.08em",
+                                          textTransform: "uppercase",
+                                        }}
+                                      >
+                                        {ex.category}
+                                      </span>
+                                    </button>
+
+                                    {ex.mux_playback_id && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          setActiveExercise(ex);
+                                        }}
+                                        style={{
+                                          width: 32,
+                                          height: 32,
+                                          borderRadius: 8,
+                                          background: "rgba(59,107,255,0.12)",
+                                          border:
+                                            "1px solid rgba(59,107,255,0.25)",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          cursor: "pointer",
+                                          flexShrink: 0,
+                                        }}
+                                        aria-label="Horfa á myndband"
+                                      >
+                                        <svg
+                                          width="14"
+                                          height="14"
+                                          fill={C.blue}
+                                          viewBox="0 0 20 20"
+                                        >
+                                          <path
+                                            fillRule="evenodd"
+                                            d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
+                                            clipRule="evenodd"
+                                          />
+                                        </svg>
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {/* Prescription pills */}
+                                  {(block.sets || block.reps || block.load) && (
+                                    <div
+                                      style={{
+                                        display: "flex",
+                                        gap: 6,
+                                        flexWrap: "wrap",
+                                      }}
+                                    >
+                                      {block.sets && (
+                                        <PrescriptionPill
+                                          value={block.sets}
+                                          label="set"
+                                        />
+                                      )}
+                                      {block.reps && (
+                                        <PrescriptionPill
+                                          value={block.reps}
+                                          label="reps"
+                                        />
+                                      )}
+                                      {block.load && (
+                                        <PrescriptionPill
+                                          value={block.load}
+                                          label="kg"
+                                        />
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* Mark done button */}
+                                  <button
+                                    onClick={(e) => handleToggle(e, block.id)}
+                                    disabled={isSaving}
+                                    style={{
+                                      width: "100%",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 8,
+                                      padding: "9px 14px",
+                                      borderRadius: 8,
+                                      background: done
+                                        ? "rgba(45,212,160,0.10)"
+                                        : "rgba(255,255,255,0.04)",
+                                      border: `1px solid ${done ? "rgba(45,212,160,0.25)" : "rgba(255,255,255,0.08)"}`,
+                                      cursor: isSaving ? "default" : "pointer",
+                                      transition: "background 0.15s, border 0.15s",
+                                    }}
+                                    aria-label={done ? "Merkja ólokið" : "Merkja lokið"}
+                                  >
+                                    {/* Circular indicator */}
+                                    <div
+                                      style={{
+                                        width: 18,
+                                        height: 18,
+                                        borderRadius: "50%",
+                                        background: done ? C.teal : "transparent",
+                                        border: `2px solid ${done ? C.teal : "rgba(255,255,255,0.2)"}`,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        flexShrink: 0,
+                                        transition:
+                                          "background 0.15s, border 0.15s",
+                                      }}
+                                    >
+                                      {done && (
+                                        <svg
+                                          width="10"
+                                          height="10"
+                                          fill="white"
+                                          viewBox="0 0 20 20"
+                                        >
+                                          <path
+                                            fillRule="evenodd"
+                                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                            clipRule="evenodd"
+                                          />
+                                        </svg>
+                                      )}
+                                    </div>
+                                    <span
+                                      style={{
+                                        fontSize: 13,
+                                        fontWeight: 600,
+                                        color: done ? C.teal : C.muted,
+                                      }}
+                                    >
+                                      {done ? "Lokið" : "Merkja lokið"}
+                                    </span>
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Day complete card */}
+          {allDone && (
+            <div
+              style={{
+                marginTop: 16,
+                background: "rgba(45,212,160,0.08)",
+                border: "1px solid rgba(45,212,160,0.2)",
+                borderRadius: 16,
+                padding: 20,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  marginBottom: 16,
+                }}
               >
-                <span>Næsti dagur: {nextDay.title}</span>
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: "50%",
+                    background: "rgba(45,212,160,0.15)",
+                    border: "1px solid rgba(45,212,160,0.3)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <svg width="18" height="18" fill={C.teal} viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <p
+                    style={{
+                      fontFamily: "var(--font-bebas)",
+                      fontSize: 22,
+                      color: C.teal,
+                      letterSpacing: "0.05em",
+                      lineHeight: 1,
+                    }}
+                  >
+                    Dagur lokinn!
+                  </p>
+                  <p style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>
+                    Þú hefur lokið öllum æfingum dagsins.
+                  </p>
+                </div>
+              </div>
+
+              {nextDay ? (
+                <Link
+                  href={`/courses/${courseSlug}/weeks/${nextDay.weekId}/days/${nextDay.id}`}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    background: C.teal,
+                    color: "#0a0c0f",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    padding: "12px 16px",
+                    borderRadius: 10,
+                    textDecoration: "none",
+                    minHeight: 44,
+                  }}
+                >
+                  <span>Næsti dagur: {nextDay.title}</span>
+                  <svg
+                    width="16"
+                    height="16"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2.5}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                </Link>
+              ) : (
+                <Link
+                  href={`/courses/${courseSlug}`}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    background: C.teal,
+                    color: "#0a0c0f",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    padding: "12px 16px",
+                    borderRadius: 10,
+                    textDecoration: "none",
+                    minHeight: 44,
+                  }}
+                >
+                  <span>Til baka í námskeið</span>
+                  <svg
+                    width="16"
+                    height="16"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2.5}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                </Link>
+              )}
+            </div>
+          )}
+
+          {/* Prev / Next navigation */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginTop: 20,
+              paddingBottom: 8,
+              gap: 8,
+            }}
+          >
+            {prevDay ? (
+              <Link
+                href={`/courses/${courseSlug}/weeks/${prevDay.weekId}/days/${prevDay.id}`}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: C.muted,
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  padding: "10px 14px",
+                  borderRadius: 10,
+                  textDecoration: "none",
+                  minHeight: 44,
+                }}
+              >
                 <svg
-                  className="w-4 h-4"
+                  width="14"
+                  height="14"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -554,18 +1203,69 @@ export default function DayClient({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M9 5l7 7-7 7"
+                    d="M15 19l-7-7 7-7"
                   />
                 </svg>
+                Fyrri dagur
               </Link>
             ) : (
               <Link
                 href={`/courses/${courseSlug}`}
-                className="flex items-center justify-between w-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-3 rounded-xl transition-colors min-h-[44px]"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: C.muted,
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  padding: "10px 14px",
+                  borderRadius: 10,
+                  textDecoration: "none",
+                  minHeight: 44,
+                }}
               >
-                <span>Til baka í námskeið</span>
                 <svg
-                  className="w-4 h-4"
+                  width="14"
+                  height="14"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+                Til baka í námskeið
+              </Link>
+            )}
+
+            {nextDay && (
+              <Link
+                href={`/courses/${courseSlug}/weeks/${nextDay.weekId}/days/${nextDay.id}`}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: C.muted,
+                  background: C.card,
+                  border: `1px solid ${C.border}`,
+                  padding: "10px 14px",
+                  borderRadius: 10,
+                  textDecoration: "none",
+                  minHeight: 44,
+                }}
+              >
+                Næsti dagur
+                <svg
+                  width="14"
+                  height="14"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -580,74 +1280,8 @@ export default function DayClient({
               </Link>
             )}
           </div>
-        )}
-
-        {/* Prev/Next navigation */}
-        <div className="flex items-center justify-between pt-2 pb-4">
-          {prevDay ? (
-            <Link
-              href={`/courses/${courseSlug}/weeks/${prevDay.weekId}/days/${prevDay.id}`}
-              className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 transition-colors min-h-[44px]"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-              Fyrri dagur
-            </Link>
-          ) : (
-            <Link
-              href={`/courses/${courseSlug}`}
-              className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 transition-colors min-h-[44px]"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-              Til baka í námskeið
-            </Link>
-          )}
-          {nextDay && (
-            <Link
-              href={`/courses/${courseSlug}/weeks/${nextDay.weekId}/days/${nextDay.id}`}
-              className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 transition-colors min-h-[44px]"
-            >
-              Næsti dagur
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
-            </Link>
-          )}
-        </div>
-      </main>
+        </main>
+      </div>
 
       {/* Exercise video modal */}
       {activeExercise && (
