@@ -58,6 +58,8 @@ function computeStreak(completedDates: Set<string>): number {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardPage() {
   const supabase = createClient();
 
@@ -70,8 +72,10 @@ export default async function DashboardPage() {
     .select("full_name")
     .eq("id", user.id)
     .single();
-  const displayName =
-    profileRow?.full_name?.trim()?.split(" ")[0] || user.email || "";
+  const firstName =
+    profileRow?.full_name?.trim()?.split(" ")[0] ||
+    user.email?.split("@")[0] ||
+    "Vinur";
 
   // Purchases with full course structure
   const { data: purchaseRows } = await supabase
@@ -93,7 +97,10 @@ export default async function DashboardPage() {
     `)
     .eq("user_id", user.id);
 
-  const purchases = (purchaseRows as unknown as PurchaseRow[]) ?? [];
+  // Filter out any rows where the courses join returned null
+  const purchases = ((purchaseRows as unknown as PurchaseRow[]) ?? []).filter(
+    (p) => p.courses != null
+  );
 
   // Progress
   const { data: progressRaw } = await supabase
@@ -135,6 +142,15 @@ export default async function DashboardPage() {
     };
   });
 
+  // ── isDayDone helper ──────────────────────────────────────────────────────
+  const isDayDone = (d: DayRow): boolean => {
+    const exBlocks = d.tasks.flatMap((t) =>
+      t.blocks.filter((b) => b.type === "exercise")
+    );
+    if (exBlocks.length === 0) return true;
+    return exBlocks.every((b) => completedIds.has(b.id));
+  };
+
   // ── Per-course enrichment ─────────────────────────────────────────────────
   type EnrichedCourse = CourseRow & {
     allBlockIds: string[];
@@ -174,15 +190,6 @@ export default async function DashboardPage() {
         ? Math.round((completedCount / allBlockIds.length) * 100)
         : 0;
 
-    // Find current (first incomplete) day
-    const isDayDone = (d: DayRow): boolean => {
-      const exBlocks = d.tasks.flatMap((t) =>
-        t.blocks.filter((b) => b.type === "exercise")
-      );
-      if (exBlocks.length === 0) return true;
-      return exBlocks.every((b) => completedIds.has(b.id));
-    };
-
     const firstIncompleteDay = allSortedDays.find((d) => !isDayDone(d));
     const currentWeekNum = firstIncompleteDay?.weekNum ?? sortedWeeks.length;
     const totalWeeks = sortedWeeks.length;
@@ -202,15 +209,7 @@ export default async function DashboardPage() {
   // Primary active course (first enrolled)
   const activeCourse = enrichedCourses[0] ?? null;
 
-  // ── Today / current day for active course ─────────────────────────────────
-  const isDayDone = (d: DayRow): boolean => {
-    const exBlocks = d.tasks.flatMap((t) =>
-      t.blocks.filter((b) => b.type === "exercise")
-    );
-    if (exBlocks.length === 0) return true;
-    return exBlocks.every((b) => completedIds.has(b.id));
-  };
-
+  // ── Today / current day ───────────────────────────────────────────────────
   const currentDay = activeCourse
     ? activeCourse.allSortedDays.find((d) => !isDayDone(d)) ??
       activeCourse.allSortedDays[activeCourse.allSortedDays.length - 1] ??
@@ -227,18 +226,13 @@ export default async function DashboardPage() {
       ? activeCourse!.allSortedDays[currentDayIdx + 1]
       : null;
 
-  // Exercise counts for today card
+  // Today's exercise counts
   const todayExBlocks = currentDay
-    ? currentDay.tasks.flatMap((t) =>
-        t.blocks.filter((b) => b.type === "exercise")
-      )
+    ? currentDay.tasks.flatMap((t) => t.blocks.filter((b) => b.type === "exercise"))
     : [];
   const todayExTotal = todayExBlocks.length;
-  const todayExDone = todayExBlocks.filter((b) =>
-    completedIds.has(b.id)
-  ).length;
-  const todayProgressPct =
-    todayExTotal > 0 ? (todayExDone / todayExTotal) * 100 : 0;
+  const todayExDone = todayExBlocks.filter((b) => completedIds.has(b.id)).length;
+  const todayProgressPct = todayExTotal > 0 ? (todayExDone / todayExTotal) * 100 : 0;
   const todayEstMin = Math.round(todayExTotal * 3);
 
   const firstIncompleteTask = currentDay?.tasks.find((t) => {
@@ -249,9 +243,9 @@ export default async function DashboardPage() {
     ? `Halda áfram — ${firstIncompleteTask.name}`
     : todayExDone > 0
     ? "Skoða daginn"
-    : "Byrja daginn";
+    : "Byrja daginn →";
 
-  // Training week strip
+  // Training week
   const currentTrainingWeek =
     currentDay && activeCourse
       ? activeCourse.weeks.find((w) => w.id === currentDay.weekId) ?? null
@@ -260,14 +254,17 @@ export default async function DashboardPage() {
     ? [...currentTrainingWeek.days].sort((a, b) => a.order_index - b.order_index)
     : [];
 
-  // Tomorrow exercise count
+  const weekDaysCompleted = trainingWeekDays.filter(isDayDone).length;
+  const weekDaysTotal = trainingWeekDays.length;
+  const weekProgressPct =
+    weekDaysTotal > 0 ? Math.round((weekDaysCompleted / weekDaysTotal) * 100) : 0;
+
+  // Tomorrow
   const tomorrowExTotal = tomorrowDay
-    ? tomorrowDay.tasks.flatMap((t) =>
-        t.blocks.filter((b) => b.type === "exercise")
-      ).length
+    ? tomorrowDay.tasks.flatMap((t) => t.blocks.filter((b) => b.type === "exercise")).length
     : 0;
 
-  // ── Browse courses if no purchases ────────────────────────────────────────
+  // Browse courses if not enrolled
   let browseCourses: { id: string; title: string; slug: string; category: string; price: number; cover_image: string | null }[] = [];
   if (purchases.length === 0) {
     const { data } = await supabase
@@ -278,119 +275,126 @@ export default async function DashboardPage() {
     browseCourses = data ?? [];
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
-  const S = {
-    card: {
-      background: "var(--surface)",
-      border: "1px solid var(--border)",
-      borderRadius: 14,
-      padding: "18px 20px",
-    } as React.CSSProperties,
-    label: {
-      fontSize: 10,
-      fontWeight: 700,
-      color: "var(--muted2)",
-      letterSpacing: "0.1em",
-      textTransform: "uppercase" as const,
-      marginBottom: 12,
-    },
+  // ── Shared styles ─────────────────────────────────────────────────────────
+  const sectionLabel: React.CSSProperties = {
+    fontSize: 10,
+    fontWeight: 700,
+    color: "var(--muted2)",
+    letterSpacing: "0.1em",
+    textTransform: "uppercase",
+    marginBottom: 10,
   };
 
   return (
     <div style={{ background: "var(--bg)", minHeight: "100vh" }}>
       <main
-        style={{ maxWidth: 672, margin: "0 auto", padding: "24px 16px 96px" }}
-        className="sm:px-6"
+        style={{ maxWidth: 680, margin: "0 auto", padding: "24px 20px 96px" }}
       >
-        {/* ── GREETING ───────────────────────────────────────────────── */}
-        <div style={{ marginBottom: 20 }}>
-          <p style={{ fontSize: 12, color: "var(--muted2)", marginBottom: 2 }}>
+
+        {/* ── GREETING ─────────────────────────────────────────────────── */}
+        <div style={{ marginBottom: 24 }}>
+          <p style={{ fontSize: 12, color: "var(--muted2)", marginBottom: 4 }}>
             {islandicDate(today)}
           </p>
           <h1
             style={{
               fontFamily: "var(--font-bebas)",
-              fontSize: 42,
+              fontSize: 48,
               color: "var(--text)",
               letterSpacing: "0.04em",
               lineHeight: 1,
+              marginBottom: 6,
             }}
           >
-            Hæ, {displayName}
+            HÆ, {firstName.toUpperCase()}!
           </h1>
+          <p style={{ fontSize: 14, color: "var(--muted2)", lineHeight: 1.5 }}>
+            Þú ert að gera vel. Haltu áfram.
+          </p>
         </div>
 
-        {/* ── STREAK CARD ────────────────────────────────────────────── */}
-        <div style={{ ...S.card, marginBottom: 14 }}>
-          <div
-            style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}
-          >
-            <span style={{ fontSize: 28, lineHeight: 1 }}>🔥</span>
+        {/* ── STREAK CARD ──────────────────────────────────────────────── */}
+        <div
+          style={{
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: 16,
+            padding: "16px 20px",
+            marginBottom: 14,
+            display: "flex",
+            alignItems: "center",
+            gap: 16,
+          }}
+        >
+          {/* Left: icon + count */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: "50%",
+                background: "rgba(255,140,66,0.15)",
+                border: "1px solid rgba(255,140,66,0.3)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 22,
+                flexShrink: 0,
+              }}
+            >
+              🔥
+            </div>
             <div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                <span
-                  style={{
-                    fontFamily: "var(--font-bebas)",
-                    fontSize: 28,
-                    color: "var(--text)",
-                    letterSpacing: "0.04em",
-                    lineHeight: 1,
-                  }}
-                >
-                  {streak}
-                </span>
-                <span
-                  style={{
-                    fontFamily: "var(--font-bebas)",
-                    fontSize: 20,
-                    color: "var(--muted2)",
-                    letterSpacing: "0.08em",
-                  }}
-                >
-                  DAGAR
-                </span>
+              <div
+                style={{
+                  fontFamily: "var(--font-bebas)",
+                  fontSize: 28,
+                  color: "var(--text)",
+                  letterSpacing: "0.04em",
+                  lineHeight: 1,
+                }}
+              >
+                {streak} DAGAR
               </div>
-              <p style={{ fontSize: 12, color: "var(--muted2)", marginTop: 2 }}>
-                {streak === 0
-                  ? "Ljúktu við æfingu í dag til að byrja strák"
-                  : "Streak í gangi — hald áfram!"}
+              <p style={{ fontSize: 11, color: "var(--muted2)", marginTop: 2 }}>
+                {streak === 0 ? "Byrjaðu strákinn í dag" : "Streak í gangi"}
               </p>
             </div>
           </div>
 
-          {/* 7-dot week row */}
-          <div style={{ display: "flex", gap: 4 }}>
+          {/* Right: 7-dot week row */}
+          <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
             {calWeekDots.map((dot, i) => (
               <div
                 key={i}
                 style={{
-                  flex: 1,
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
-                  gap: 5,
+                  gap: 4,
                 }}
               >
                 <div
                   style={{
-                    width: 10,
-                    height: 10,
+                    width: 9,
+                    height: 9,
                     borderRadius: "50%",
                     background: dot.isToday
                       ? "var(--accent)"
                       : dot.isDone
                       ? "var(--success)"
                       : "var(--surface2)",
-                    border: dot.isToday
-                      ? "2px solid rgba(59,107,255,0.4)"
+                    border: dot.isFuture
+                      ? "1px solid var(--border)"
+                      : dot.isToday
+                      ? "2px solid rgba(59,107,255,0.35)"
                       : "none",
                     boxSizing: "border-box",
                   }}
                 />
                 <span
                   style={{
-                    fontSize: 8,
+                    fontSize: 7,
                     fontWeight: 700,
                     letterSpacing: "0.06em",
                     color: dot.isToday ? "var(--accent)" : "var(--muted)",
@@ -406,16 +410,15 @@ export default async function DashboardPage() {
 
         {activeCourse && currentDay ? (
           <>
-            {/* ── TODAY CARD ─────────────────────────────────────────── */}
+            {/* ── TODAY CARD ───────────────────────────────────────────── */}
             <div
               style={{
                 background: "var(--surface)",
                 border: "1px solid var(--border)",
-                borderRadius: 14,
-                padding: "18px 20px",
-                position: "relative",
+                borderRadius: 20,
                 overflow: "hidden",
-                marginBottom: 14,
+                position: "relative",
+                marginBottom: 10,
               }}
             >
               {/* Gradient top border */}
@@ -426,256 +429,158 @@ export default async function DashboardPage() {
                   left: 0,
                   right: 0,
                   height: 2,
-                  background:
-                    "linear-gradient(90deg, var(--accent), #8b5cf6, var(--success))",
+                  background: "linear-gradient(90deg, #3b6bff, #7c3aed, #2dd4a0)",
+                  zIndex: 2,
                 }}
               />
 
-              <p
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: "var(--accent)",
-                  letterSpacing: "0.12em",
-                  textTransform: "uppercase",
-                  marginBottom: 6,
-                }}
-              >
-                Dagur {currentDay.order_index + 1} · Vika {currentDay.weekNum}
-              </p>
-              <h2
-                style={{
-                  fontFamily: "var(--font-bebas)",
-                  fontSize: 28,
-                  color: "var(--text)",
-                  letterSpacing: "0.04em",
-                  lineHeight: 1,
-                  marginBottom: 4,
-                }}
-              >
-                {currentDay.title}
-              </h2>
-
-              {todayExTotal > 0 && (
-                <p style={{ fontSize: 12, color: "var(--muted2)", marginBottom: 14 }}>
-                  {todayExTotal} verkefni
-                  {todayEstMin > 0 && ` · ~${todayEstMin} mín`}
-                </p>
+              {/* Cover image background */}
+              {activeCourse.cover_image && (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={activeCourse.cover_image}
+                    alt=""
+                    aria-hidden
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      opacity: 0.4,
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background: "linear-gradient(180deg, rgba(10,12,15,0.55) 0%, rgba(10,12,15,0.90) 100%)",
+                    }}
+                  />
+                </>
               )}
 
-              {/* Progress ring + bar */}
-              {todayExTotal > 0 && (
-                <div
+              {/* Content */}
+              <div style={{ position: "relative", zIndex: 1, padding: "20px 20px 18px" }}>
+                <p
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: "var(--accent)",
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    marginBottom: 6,
+                  }}
+                >
+                  DAGUR {currentDay.order_index + 1} · VIKA {currentDay.weekNum}
+                </p>
+
+                <h2
+                  style={{
+                    fontFamily: "var(--font-bebas)",
+                    fontSize: 32,
+                    color: "var(--text)",
+                    letterSpacing: "0.04em",
+                    lineHeight: 1,
+                    marginBottom: 6,
+                  }}
+                >
+                  {currentDay.title}
+                </h2>
+
+                {todayExTotal > 0 && (
+                  <p style={{ fontSize: 12, color: "var(--muted2)", marginBottom: 16 }}>
+                    {todayExTotal} verkefni{todayEstMin > 0 ? ` · ~${todayEstMin} mín` : ""}
+                  </p>
+                )}
+
+                {/* Progress ring + bar */}
+                {todayExTotal > 0 && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+                    <svg
+                      width="38"
+                      height="38"
+                      viewBox="0 0 38 38"
+                      style={{ flexShrink: 0, transform: "rotate(-90deg)" }}
+                    >
+                      <circle cx="19" cy="19" r="15" fill="none" stroke="rgba(59,107,255,0.15)" strokeWidth="3" />
+                      <circle
+                        cx="19" cy="19" r="15" fill="none"
+                        stroke="var(--accent)" strokeWidth="3"
+                        strokeDasharray={`${(todayProgressPct / 100) * 2 * Math.PI * 15} ${2 * Math.PI * 15}`}
+                        strokeLinecap="round"
+                        style={{ transition: "stroke-dasharray 0.4s ease" }}
+                      />
+                    </svg>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 999, overflow: "hidden", marginBottom: 5 }}>
+                        <div
+                          style={{
+                            height: "100%",
+                            width: `${todayProgressPct}%`,
+                            background: "linear-gradient(90deg, var(--accent), var(--success))",
+                            borderRadius: 999,
+                            transition: "width 0.4s ease",
+                          }}
+                        />
+                      </div>
+                      <span style={{ fontSize: 11, color: "var(--muted2)" }}>
+                        {todayExDone} / {todayExTotal} lokið
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* CTA button */}
+                <Link
+                  href={`/courses/${activeCourse.slug}/weeks/${currentDay.weekId}/days/${currentDay.id}`}
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 12,
-                    marginBottom: 16,
+                    justifyContent: "space-between",
+                    background: "var(--accent)",
+                    color: "#fff",
+                    fontSize: 14,
+                    fontWeight: 700,
+                    padding: "13px 18px",
+                    borderRadius: 12,
+                    textDecoration: "none",
+                    gap: 8,
                   }}
                 >
-                  <svg
-                    width="38"
-                    height="38"
-                    viewBox="0 0 38 38"
-                    style={{ flexShrink: 0, transform: "rotate(-90deg)" }}
-                  >
-                    <circle
-                      cx="19"
-                      cy="19"
-                      r="15"
-                      fill="none"
-                      stroke="rgba(59,107,255,0.15)"
-                      strokeWidth="3"
-                    />
-                    <circle
-                      cx="19"
-                      cy="19"
-                      r="15"
-                      fill="none"
-                      stroke="var(--accent)"
-                      strokeWidth="3"
-                      strokeDasharray={`${(todayProgressPct / 100) * 2 * Math.PI * 15} ${2 * Math.PI * 15}`}
-                      strokeLinecap="round"
-                      style={{ transition: "stroke-dasharray 0.4s ease" }}
-                    />
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {firstIncompleteTask ? `▶ ${ctaLabel}` : ctaLabel}
+                  </span>
+                  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
                   </svg>
-                  <div style={{ flex: 1 }}>
-                    <div
-                      style={{
-                        height: 4,
-                        background: "var(--surface2)",
-                        borderRadius: 999,
-                        overflow: "hidden",
-                        marginBottom: 5,
-                      }}
-                    >
-                      <div
-                        style={{
-                          height: "100%",
-                          width: `${todayProgressPct}%`,
-                          background:
-                            "linear-gradient(90deg, var(--accent), var(--success))",
-                          borderRadius: 999,
-                          transition: "width 0.4s ease",
-                        }}
-                      />
-                    </div>
-                    <span style={{ fontSize: 11, color: "var(--muted2)" }}>
-                      {todayExDone} / {todayExTotal} lokið
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* CTA */}
-              <Link
-                href={`/courses/${activeCourse.slug}/weeks/${currentDay.weekId}/days/${currentDay.id}`}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  background: "var(--accent)",
-                  color: "#fff",
-                  fontSize: 14,
-                  fontWeight: 700,
-                  padding: "13px 16px",
-                  borderRadius: 10,
-                  textDecoration: "none",
-                  minHeight: 46,
-                  gap: 8,
-                }}
-              >
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  ▶ {ctaLabel}
-                </span>
-                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
+                </Link>
+              </div>
             </div>
 
-            {/* ── TRAINING WEEK STRIP ────────────────────────────────── */}
-            {trainingWeekDays.length > 0 && (
-              <div style={{ marginBottom: 14 }}>
-                <p style={{ ...S.label, marginBottom: 8 }}>
-                  Vika {currentDay.weekNum} — {currentTrainingWeek?.title}
-                </p>
-                <div style={{ display: "flex", gap: 6 }}>
-                  {trainingWeekDays.map((wd) => {
-                    const abbrev = DAY_ABBREVS[wd.order_index] ?? `D${wd.order_index + 1}`;
-                    const isCurrent = wd.id === currentDay.id;
-                    const isPast = wd.order_index < currentDay.order_index;
-                    const isLocked = wd.order_index > currentDay.order_index;
-
-                    let pillStyle: React.CSSProperties = {
-                      background: "var(--surface)",
-                      border: "1px solid var(--border)",
-                    };
-                    let abbrevColor = "var(--muted2)";
-                    let numColor = "var(--muted)";
-
-                    if (isCurrent) {
-                      pillStyle = {
-                        background: "rgba(59,107,255,0.10)",
-                        border: "1px solid rgba(59,107,255,0.5)",
-                      };
-                      abbrevColor = "var(--accent)";
-                      numColor = "var(--accent)";
-                    } else if (isPast) {
-                      pillStyle = {
-                        background: "rgba(45,212,160,0.07)",
-                        border: "1px solid rgba(45,212,160,0.28)",
-                      };
-                      abbrevColor = "var(--success)";
-                      numColor = "var(--success)";
-                    }
-
-                    return (
-                      <Link
-                        key={wd.id}
-                        href={`/courses/${activeCourse.slug}/weeks/${currentDay.weekId}/days/${wd.id}`}
-                        style={{
-                          ...pillStyle,
-                          borderRadius: 12,
-                          padding: "10px 4px",
-                          minWidth: 48,
-                          flex: 1,
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          textDecoration: "none",
-                          opacity: isLocked ? 0.28 : 1,
-                          transition: "opacity 0.15s",
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            letterSpacing: "0.08em",
-                            textTransform: "uppercase",
-                            color: abbrevColor,
-                            lineHeight: 1,
-                          }}
-                        >
-                          {abbrev}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 600,
-                            color: numColor,
-                            marginTop: 4,
-                            lineHeight: 1,
-                          }}
-                        >
-                          {wd.order_index + 1}
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* ── TOMORROW PREVIEW ───────────────────────────────────── */}
+            {/* ── TOMORROW PREVIEW ─────────────────────────────────────── */}
             {tomorrowDay && (
-              <div
+              <Link
+                href={`/courses/${activeCourse.slug}/weeks/${tomorrowDay.weekId}/days/${tomorrowDay.id}`}
                 style={{
-                  background: "var(--surface2)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 12,
-                  padding: "14px 16px",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
                   gap: 12,
-                  marginBottom: 24,
+                  background: "var(--surface2)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 12,
+                  padding: "12px 16px",
+                  textDecoration: "none",
+                  marginBottom: 20,
                 }}
               >
                 <div>
-                  <p
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      color: "var(--muted)",
-                      letterSpacing: "0.1em",
-                      textTransform: "uppercase",
-                      marginBottom: 3,
-                    }}
-                  >
+                  <p style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 2 }}>
                     Á morgun
                   </p>
-                  <p
-                    style={{
-                      fontFamily: "var(--font-bebas)",
-                      fontSize: 18,
-                      color: "var(--text)",
-                      letterSpacing: "0.04em",
-                      lineHeight: 1,
-                      marginBottom: 2,
-                    }}
-                  >
+                  <p style={{ fontFamily: "var(--font-bebas)", fontSize: 18, color: "var(--text)", letterSpacing: "0.04em", lineHeight: 1, marginBottom: 2 }}>
                     {tomorrowDay.title}
                   </p>
                   {tomorrowExTotal > 0 && (
@@ -684,155 +589,131 @@ export default async function DashboardPage() {
                     </p>
                   )}
                 </div>
-                <svg
-                  width="16"
-                  height="16"
-                  fill="none"
-                  stroke="var(--muted)"
-                  viewBox="0 0 24 24"
-                  style={{ flexShrink: 0 }}
-                >
+                <svg width="16" height="16" fill="none" stroke="var(--muted)" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
+              </Link>
+            )}
+
+            {/* ── WEEK PROGRESS ────────────────────────────────────────── */}
+            {weekDaysTotal > 0 && (
+              <div
+                style={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 14,
+                  padding: "16px 20px",
+                  marginBottom: 20,
+                }}
+              >
+                <p style={sectionLabel}>Þessi vika</p>
+                <p style={{ fontSize: 13, color: "var(--text)", fontWeight: 600, marginBottom: 10 }}>
+                  {weekDaysCompleted} af {weekDaysTotal} dögum kláraðir
+                </p>
+                <div style={{ height: 5, background: "var(--surface2)", borderRadius: 999, overflow: "hidden" }}>
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${weekProgressPct}%`,
+                      background: "linear-gradient(90deg, var(--accent), var(--success))",
+                      borderRadius: 999,
+                      transition: "width 0.4s ease",
+                    }}
+                  />
+                </div>
               </div>
             )}
 
-            {/* ── PROGRAMS LIST ──────────────────────────────────────── */}
-            <section>
-              <p style={S.label}>Mín námskeið</p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {enrichedCourses.map((course) => (
-                  <Link
-                    key={course.id}
-                    href={`/courses/${course.slug}`}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 14,
-                      background: "var(--surface)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 12,
-                      padding: "12px 14px",
-                      textDecoration: "none",
-                    }}
-                  >
-                    {/* Cover strip */}
-                    <div
+            {/* ── MY PROGRAMS ──────────────────────────────────────────── */}
+            {enrichedCourses.length > 0 && (
+              <section>
+                <p style={sectionLabel}>Mín námskeið</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {enrichedCourses.map((course) => (
+                    <Link
+                      key={course.id}
+                      href={`/courses/${course.slug}`}
                       style={{
-                        width: 52,
-                        height: 40,
-                        borderRadius: 8,
-                        overflow: "hidden",
-                        background: "var(--surface2)",
-                        flexShrink: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 14,
+                        background: "var(--surface)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 12,
+                        padding: "12px 14px",
+                        textDecoration: "none",
                       }}
                     >
-                      {course.cover_image ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={course.cover_image}
-                          alt={course.title}
-                          style={{
-                            width: "100%",
-                            height: "100%",
-                            objectFit: "cover",
-                          }}
-                        />
-                      ) : (
-                        <div
-                          style={{
-                            width: "100%",
-                            height: "100%",
-                            background: "var(--surface3)",
-                          }}
-                        />
-                      )}
-                    </div>
-
-                    {/* Info */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: "var(--text)",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          marginBottom: 2,
-                        }}
-                      >
-                        {course.title}
-                      </p>
-                      <p style={{ fontSize: 11, color: "var(--muted2)", marginBottom: 6 }}>
-                        Vika {course.currentWeekNum} af {course.totalWeeks} · {course.pct}% lokið
-                      </p>
+                      {/* Thumbnail */}
                       <div
                         style={{
-                          height: 3,
-                          background: "var(--surface2)",
-                          borderRadius: 999,
+                          width: 48,
+                          height: 48,
+                          borderRadius: 10,
                           overflow: "hidden",
+                          background: "var(--surface2)",
+                          flexShrink: 0,
                         }}
                       >
-                        <div
-                          style={{
-                            height: "100%",
-                            width: `${course.pct}%`,
-                            background: "var(--accent)",
-                            borderRadius: 999,
-                            transition: "width 0.4s ease",
-                          }}
-                        />
+                        {course.cover_image ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={course.cover_image}
+                            alt={course.title}
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                          />
+                        ) : (
+                          <div style={{ width: "100%", height: "100%", background: "var(--surface3)" }} />
+                        )}
                       </div>
-                    </div>
 
-                    <svg
-                      width="14"
-                      height="14"
-                      fill="none"
-                      stroke="var(--muted)"
-                      viewBox="0 0 24 24"
-                      style={{ flexShrink: 0 }}
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </Link>
-                ))}
-              </div>
-            </section>
+                      {/* Info */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 2 }}>
+                          {course.title}
+                        </p>
+                        <p style={{ fontSize: 11, color: "var(--muted2)", marginBottom: 6 }}>
+                          Vika {course.currentWeekNum} af {course.totalWeeks} · {course.pct}%
+                        </p>
+                        <div style={{ height: 3, background: "var(--surface2)", borderRadius: 999, overflow: "hidden" }}>
+                          <div
+                            style={{
+                              height: "100%",
+                              width: `${course.pct}%`,
+                              background: "linear-gradient(90deg, var(--accent), var(--success))",
+                              borderRadius: 999,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <svg width="14" height="14" fill="none" stroke="var(--muted)" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
           </>
         ) : (
-          /* ── No purchases — browse ──────────────────────────────────── */
+          /* ── Not enrolled ─────────────────────────────────────────────── */
           <section>
             <div
               style={{
-                ...S.card,
-                textAlign: "center",
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: 16,
                 padding: "32px 20px",
+                textAlign: "center",
                 marginBottom: 20,
               }}
             >
-              <p
-                style={{
-                  fontFamily: "var(--font-bebas)",
-                  fontSize: 24,
-                  color: "var(--text)",
-                  letterSpacing: "0.04em",
-                  marginBottom: 8,
-                }}
-              >
+              <p style={{ fontFamily: "var(--font-bebas)", fontSize: 24, color: "var(--text)", letterSpacing: "0.04em", marginBottom: 8 }}>
                 Byrjaðu í dag
               </p>
-              <p
-                style={{
-                  fontSize: 13,
-                  color: "var(--muted2)",
-                  marginBottom: 20,
-                  lineHeight: 1.6,
-                }}
-              >
-                Þú ert ekki skráður í nein námskeið enn. Veldu námskeið og byrjaðu þjálfunina.
+              <p style={{ fontSize: 13, color: "var(--muted2)", marginBottom: 20, lineHeight: 1.6 }}>
+                Þú ert ekki skráður í nein námskeið enn.<br />Veldu námskeið og byrjaðu þjálfunina.
               </p>
               <Link
                 href="/courses"
@@ -853,7 +734,7 @@ export default async function DashboardPage() {
 
             {browseCourses.length > 0 && (
               <>
-                <p style={S.label}>Í boði</p>
+                <p style={sectionLabel}>Í boði</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {browseCourses.map((course) => (
                     <Link
@@ -870,47 +751,16 @@ export default async function DashboardPage() {
                         textDecoration: "none",
                       }}
                     >
-                      <div
-                        style={{
-                          width: 48,
-                          height: 36,
-                          borderRadius: 6,
-                          overflow: "hidden",
-                          background: "var(--surface2)",
-                          flexShrink: 0,
-                        }}
-                      >
+                      <div style={{ width: 48, height: 48, borderRadius: 10, overflow: "hidden", background: "var(--surface2)", flexShrink: 0 }}>
                         {course.cover_image && (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={course.cover_image}
-                            alt={course.title}
-                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                          />
+                          <img src={course.cover_image} alt={course.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                         )}
                       </div>
-                      <span
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 500,
-                          color: "var(--text)",
-                          flex: 1,
-                          minWidth: 0,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
+                      <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {course.title}
                       </span>
-                      <svg
-                        width="14"
-                        height="14"
-                        fill="none"
-                        stroke="var(--muted)"
-                        viewBox="0 0 24 24"
-                        style={{ flexShrink: 0 }}
-                      >
+                      <svg width="14" height="14" fill="none" stroke="var(--muted)" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     </Link>
