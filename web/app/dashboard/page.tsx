@@ -114,6 +114,10 @@ export default async function DashboardPage() {
     coursesData = (coursesRaw as unknown as CourseRow[]) ?? [];
   }
 
+  // DEBUG
+  console.log("[dashboard] coursesData.length:", coursesData.length);
+  console.log("[dashboard] coursesData titles:", coursesData.map(c => c.title));
+
   // Progress
   const { data: progressRaw } = await supabase
     .from("progress")
@@ -217,6 +221,12 @@ export default async function DashboardPage() {
     };
   });
 
+  // DEBUG
+  console.log("[dashboard] enrichedCourses.length:", enrichedCourses.length);
+  console.log("[dashboard] enrichedCourses[0]:", enrichedCourses[0]
+    ? { title: enrichedCourses[0].title, totalWeeks: enrichedCourses[0].totalWeeks, allSortedDays: enrichedCourses[0].allSortedDays.length }
+    : null);
+
   // Primary active course (first enrolled)
   const activeCourse = enrichedCourses[0] ?? null;
 
@@ -226,6 +236,10 @@ export default async function DashboardPage() {
       activeCourse.allSortedDays[activeCourse.allSortedDays.length - 1] ??
       null
     : null;
+
+  // DEBUG
+  console.log("[dashboard] activeCourse:", activeCourse ? activeCourse.title : null);
+  console.log("[dashboard] currentDay:", currentDay ? { id: currentDay.id, title: currentDay.title, weekId: currentDay.weekId } : null);
 
   const currentDayIdx = currentDay
     ? activeCourse!.allSortedDays.findIndex((d) => d.id === currentDay.id)
