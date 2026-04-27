@@ -23,9 +23,6 @@ export default function Sidebar({ userEmail, userFullName: userFullNameProp, isA
   const pathname = usePathname();
   const router = useRouter();
 
-  // Only render sidebar on admin routes
-  if (!pathname.startsWith("/admin")) return null;
-
   // full_name from profiles — start with server-side prop, refresh client-side
   const [fullName, setFullName] = useState<string | null>(userFullNameProp ?? null);
 
@@ -44,6 +41,9 @@ export default function Sidebar({ userEmail, userFullName: userFullNameProp, isA
       setFullName(data?.full_name?.trim() || null);
     })();
   }, [userEmail]);
+
+  // Only render sidebar on admin routes
+  if (!pathname.startsWith("/admin")) return null;
 
   const handleSignOut = async () => {
     const supabase = createClient();
