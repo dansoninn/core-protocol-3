@@ -65,6 +65,10 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login?next=/dashboard");
 
+  // DEBUG
+  console.log("[dashboard] user.id:", user.id);
+  console.log("[dashboard] user.email:", user.email);
+
   // Profile
   const { data: profileRow } = await supabase
     .from("profiles")
@@ -77,10 +81,14 @@ export default async function DashboardPage() {
     "Vinur";
 
   // Step 1: enrollment check — simple query, no joins
-  const { data: purchaseData } = await supabase
+  const { data: purchaseData, error: purchaseError } = await supabase
     .from("purchases")
     .select("course_id")
     .eq("user_id", user.id);
+
+  // DEBUG
+  console.log("[dashboard] purchaseData:", JSON.stringify(purchaseData));
+  console.log("[dashboard] purchaseError:", JSON.stringify(purchaseError));
 
   const courseIds = (purchaseData ?? []).map((p: { course_id: string }) => p.course_id);
 
