@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Bebas_Neue } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
@@ -7,6 +7,11 @@ import Sidebar from "@/components/Sidebar";
 import { createClient } from "@/lib/supabase/server";
 
 const inter = Inter({ subsets: ["latin"] });
+const bebasNeue = Bebas_Neue({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-bebas",
+});
 
 export const metadata: Metadata = {
   title: "Core Protocol — Þjálfunarnámskeið",
@@ -38,7 +43,7 @@ export default async function RootLayout({
 
   return (
     <html lang="is">
-      <body className={`${inter.className} bg-zinc-50 text-zinc-900 min-h-screen`}>
+      <body className={`${inter.className} ${bebasNeue.variable} bg-zinc-50 text-zinc-900 min-h-screen`}>
         {/* Top navbar — mobile only */}
         <div className="md:hidden">
           <Navbar userEmail={user?.email ?? null} userFullName={fullName} />

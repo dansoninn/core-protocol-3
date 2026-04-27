@@ -113,9 +113,9 @@ export default async function DayPage({
     .eq("course_id", dayData.weeks.courses.id)
     .order("order_index");
 
-  const allDaysFlat: { id: string; title: string; weekId: string }[] = (
-    (allWeeksRaw as unknown as WeekForNav[]) ?? []
-  )
+  const allWeeks = (allWeeksRaw as unknown as WeekForNav[]) ?? [];
+
+  const allDaysFlat: { id: string; title: string; weekId: string }[] = allWeeks
     .map((w) => ({
       ...w,
       days: [...(w.days ?? [])].sort((a, b) => a.order_index - b.order_index),
@@ -130,6 +130,13 @@ export default async function DayPage({
     currentIdx >= 0 && currentIdx < allDaysFlat.length - 1
       ? allDaysFlat[currentIdx + 1]
       : null;
+
+  const currentWeekData = allWeeks.find((w) => w.id === params.weekId);
+  const weekNumber = currentWeekData ? currentWeekData.order_index + 1 : 1;
+  const totalWeeks = allWeeks.length;
+  const weekDays = currentWeekData
+    ? [...(currentWeekData.days ?? [])].sort((a, b) => a.order_index - b.order_index)
+    : [];
 
   // ── Tasks with blocks and exercises ───────────────────────────────────────
   const { data: tasksRaw } = await supabase
@@ -177,10 +184,14 @@ export default async function DayPage({
       coverImage={dayData.weeks.courses.cover_image}
       weekTitle={dayData.weeks.title}
       weekId={params.weekId}
+      weekNumber={weekNumber}
+      totalWeeks={totalWeeks}
+      weekDays={weekDays}
       day={{
         id: dayData.id,
         title: dayData.title,
         description: dayData.description,
+        order_index: dayData.order_index,
       }}
       tasks={tasks}
       userId={user.id}
