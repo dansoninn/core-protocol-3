@@ -5,50 +5,86 @@ interface Props {
   course: DbCourse;
 }
 
-const categoryColors: Record<string, string> = {
-  Styrkur: "bg-blue-100 text-blue-800",
-  Þyngdartap: "bg-orange-100 text-orange-800",
-  "Liðleiki & hreyfigeta": "bg-green-100 text-green-800",
-  "Heilsa & endurnæring": "bg-teal-100 text-teal-800",
-  Endurhæfing: "bg-purple-100 text-purple-800",
-};
-
 export default function CourseCard({ course }: Props) {
-  const colorClass =
-    categoryColors[course.category] ?? "bg-zinc-100 text-zinc-800";
-
   return (
     <Link
       href={`/courses/${course.slug}`}
-      className="group bg-white rounded-2xl overflow-hidden shadow-sm border border-zinc-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+      style={{
+        display: "block",
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        borderRadius: 16,
+        overflow: "hidden",
+        textDecoration: "none",
+        transition: "border-color 0.15s, transform 0.15s",
+      }}
+      className="group hover:-translate-y-0.5"
     >
-      {/* Cover image — using <img> because covers can come from any domain */}
-      <div className="relative w-full h-48 bg-zinc-200 overflow-hidden">
+      {/* Cover image */}
+      <div
+        style={{
+          position: "relative",
+          width: "100%",
+          height: 180,
+          background: "var(--surface2)",
+          overflow: "hidden",
+        }}
+      >
         {course.cover_image ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={course.cover_image}
             alt={course.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              transition: "transform 0.3s",
+            }}
+            className="group-hover:scale-105"
           />
         ) : (
-          <div className="w-full h-full bg-zinc-800" />
+          <div style={{ width: "100%", height: "100%", background: "var(--surface3)" }} />
         )}
         <span
-          className={`absolute top-3 left-3 text-xs font-semibold px-2.5 py-1 rounded-full ${colorClass}`}
+          style={{
+            position: "absolute",
+            top: 10,
+            left: 10,
+            fontSize: 10,
+            fontWeight: 700,
+            color: "var(--muted2)",
+            background: "rgba(10,12,15,0.7)",
+            backdropFilter: "blur(6px)",
+            padding: "3px 8px",
+            borderRadius: 999,
+            border: "1px solid rgba(255,255,255,0.08)",
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+          }}
         >
           {course.category}
         </span>
       </div>
 
-      <div className="p-4">
-        <h3 className="font-semibold text-zinc-900 text-lg leading-snug mb-1 group-hover:text-zinc-700 transition-colors">
+      <div style={{ padding: "14px 16px" }}>
+        <h3
+          style={{
+            fontSize: 15,
+            fontWeight: 600,
+            color: "var(--text)",
+            lineHeight: 1.35,
+            marginBottom: 4,
+          }}
+        >
           {course.title}
         </h3>
         {course.instructor && (
-          <p className="text-sm text-zinc-500 mb-3">{course.instructor}</p>
+          <p style={{ fontSize: 12, color: "var(--muted2)", marginBottom: 8 }}>
+            {course.instructor}
+          </p>
         )}
-        <p className="text-zinc-900 font-bold text-base">
+        <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>
           {course.price.toLocaleString("is-IS")} kr.
         </p>
       </div>

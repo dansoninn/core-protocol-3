@@ -18,23 +18,46 @@ export default function HomeClient({ courses, categories }: Props) {
     : courses;
 
   return (
-    <main>
+    <div style={{ background: "var(--bg)", minHeight: "100vh" }}>
       {/* Hero */}
-      <section className="bg-zinc-900 text-white py-20 px-4">
-        <div className="max-w-3xl mx-auto text-center">
-          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-4 leading-tight">
+      <section
+        style={{
+          background: "var(--surface)",
+          borderBottom: "1px solid var(--border)",
+          padding: "64px 20px 48px",
+          textAlign: "center",
+        }}
+      >
+        <div style={{ maxWidth: 560, margin: "0 auto" }}>
+          <h1
+            style={{
+              fontFamily: "var(--font-bebas)",
+              fontSize: "clamp(40px, 8vw, 64px)",
+              color: "var(--text)",
+              letterSpacing: "0.04em",
+              lineHeight: 1,
+              marginBottom: 12,
+            }}
+          >
             Hvað ertu að leita að?
           </h1>
-          <p className="text-zinc-400 text-lg sm:text-xl">
+          <p style={{ fontSize: 16, color: "var(--muted2)", lineHeight: 1.6 }}>
             Veldu markmið þitt og við finnum námskeið fyrir þig
           </p>
         </div>
       </section>
 
       {/* Filter + Grid */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <section
+        style={{
+          maxWidth: 1120,
+          margin: "0 auto",
+          padding: "32px 20px 80px",
+        }}
+        className="sm:px-6 lg:px-8"
+      >
         {categories.length > 0 && (
-          <div className="mb-8">
+          <div style={{ marginBottom: 28 }}>
             <FilterButtons
               categories={categories}
               selected={selected}
@@ -45,19 +68,32 @@ export default function HomeClient({ courses, categories }: Props) {
         )}
 
         {filtered.length === 0 ? (
-          <p className="text-zinc-500 text-center py-16">
+          <p
+            style={{
+              color: "var(--muted2)",
+              textAlign: "center",
+              padding: "64px 0",
+              fontSize: 14,
+            }}
+          >
             {courses.length === 0
               ? "Engin námskeið í boði eins og er."
               : "Engin námskeið fundust í þessum flokki."}
           </p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+              gap: 20,
+            }}
+          >
             {filtered.map((course) => (
               <CourseCard key={course.id} course={course} />
             ))}
           </div>
         )}
       </section>
-    </main>
+    </div>
   );
 }

@@ -2,8 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --bg: #0a0c0f;
+  --surface: #111318;
+  --surface2: #161a21;
+  --surface3: #1c2029;
+  --border: rgba(255, 255, 255, 0.06);
+  --accent: #3b6bff;
+  --accent-dim: rgba(59, 107, 255, 0.12);
+  --success: #2dd4a0;
+  --success-dim: rgba(45, 212, 160, 0.1);
+  --text: #f0f2f5;
+  --muted: #5a6070;
+  --muted2: #8892a0;
+  --warm: #ff8c42;
+}
+
 body {
   font-family: Inter, system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
   /* Ensure nothing on body breaks fixed positioning for BottomNav */
   overflow-x: hidden;
 }

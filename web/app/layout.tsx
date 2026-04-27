@@ -43,7 +43,7 @@ export default async function RootLayout({
 
   return (
     <html lang="is">
-      <body className={`${inter.className} ${bebasNeue.variable} bg-zinc-50 text-zinc-900 min-h-screen`}>
+      <body className={`${inter.className} ${bebasNeue.variable} min-h-screen`}>
         {/* Top navbar — mobile only */}
         <div className="md:hidden">
           <Navbar userEmail={user?.email ?? null} userFullName={fullName} />

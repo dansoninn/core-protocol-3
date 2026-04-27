@@ -14,14 +14,20 @@ export default function FilterButtons({
   allLabel = "Allt",
 }: Props) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
       <button
         onClick={() => onChange(null)}
-        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${
-          selected === null
-            ? "bg-zinc-900 text-white border-zinc-900"
-            : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400"
-        }`}
+        style={{
+          padding: "7px 16px",
+          borderRadius: 999,
+          fontSize: 13,
+          fontWeight: 500,
+          cursor: "pointer",
+          border: `1px solid ${selected === null ? "var(--accent)" : "var(--border)"}`,
+          background: selected === null ? "var(--accent-dim)" : "var(--surface)",
+          color: selected === null ? "var(--accent)" : "var(--muted2)",
+          transition: "all 0.15s",
+        }}
       >
         {allLabel}
       </button>
@@ -29,11 +35,17 @@ export default function FilterButtons({
         <button
           key={cat}
           onClick={() => onChange(cat)}
-          className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${
-            selected === cat
-              ? "bg-zinc-900 text-white border-zinc-900"
-              : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400"
-          }`}
+          style={{
+            padding: "7px 16px",
+            borderRadius: 999,
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: "pointer",
+            border: `1px solid ${selected === cat ? "var(--accent)" : "var(--border)"}`,
+            background: selected === cat ? "var(--accent-dim)" : "var(--surface)",
+            color: selected === cat ? "var(--accent)" : "var(--muted2)",
+            transition: "all 0.15s",
+          }}
         >
           {cat}
         </button>
