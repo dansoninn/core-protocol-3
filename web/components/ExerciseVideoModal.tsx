@@ -46,9 +46,36 @@ export default function ExerciseVideoModal({ exercise, onClose }: Props) {
             padding: "16px 20px",
           }}
         >
-          <h2 style={{ fontWeight: 700, color: "var(--text)", fontSize: 17, lineHeight: 1.35, paddingRight: 16 }}>
-            {exercise.name}
-          </h2>
+          <div style={{ flex: 1, paddingRight: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                  background: "var(--accent-dim)",
+                  color: "var(--accent)",
+                  borderRadius: 4,
+                  padding: "2px 7px",
+                }}
+              >
+                {exercise.category}
+              </span>
+            </div>
+            <h2
+              style={{
+                fontFamily: "var(--font-bebas)",
+                fontSize: 24,
+                letterSpacing: "0.03em",
+                color: "var(--text)",
+                lineHeight: 1.1,
+                margin: 0,
+              }}
+            >
+              {exercise.name}
+            </h2>
+          </div>
           <button
             onClick={onClose}
             aria-label="Close"
@@ -93,8 +120,8 @@ export default function ExerciseVideoModal({ exercise, onClose }: Props) {
             style={{ width: "100%", aspectRatio: "16/9" }}
           />
         ) : (
-          <div className="w-full bg-zinc-900 flex items-center justify-center h-48">
-            <p className="text-zinc-500 text-sm">No video available</p>
+          <div style={{ width: "100%", background: "var(--surface2)", display: "flex", alignItems: "center", justifyContent: "center", height: 192 }}>
+            <p style={{ color: "var(--muted2)", fontSize: 13 }}>Ekkert myndband í boði</p>
           </div>
         )}
 
