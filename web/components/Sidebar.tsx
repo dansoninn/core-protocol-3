@@ -66,7 +66,7 @@ export default function Sidebar({ userEmail, userFullName: userFullNameProp, isA
 
   return (
     <aside
-      className="hidden md:flex flex-col fixed left-0 top-0 h-screen w-60 z-40"
+      className="flex flex-col fixed left-0 top-0 h-screen w-60 z-40"
       style={{ backgroundColor: "#0d1117" }}
     >
       {/* Logo */}

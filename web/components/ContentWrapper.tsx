@@ -11,7 +11,7 @@ export default function ContentWrapper({
   const isAdmin = pathname.startsWith("/admin");
 
   return (
-    <div className={isAdmin ? "md:ml-60" : ""}>
+    <div className={isAdmin ? "ml-60" : ""}>
       {children}
     </div>
   );
