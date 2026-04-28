@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import ProfileSignOut from "./ProfileSignOut";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +81,21 @@ export default async function ProfilePage() {
     }
   }
 
+  // Stats
+  const workoutsCount = uniqueDates.length;
+
+  let completedDaysCount = 0;
+  for (const p of purchases) {
+    for (const week of p.courses.weeks ?? []) {
+      for (const day of week.days) {
+        const dayBlockIds = day.tasks.flatMap((t) => t.blocks.map((b) => b.id));
+        if (dayBlockIds.length > 0 && dayBlockIds.every((id) => completedIds.has(id))) {
+          completedDaysCount++;
+        }
+      }
+    }
+  }
+
   const enrolledCourses = purchases.map((p) => {
     const course = p.courses;
     const allBlockIds = (course.weeks ?? []).flatMap((w) =>
@@ -90,7 +106,16 @@ export default async function ProfilePage() {
       allBlockIds.length > 0
         ? Math.round((completedCount / allBlockIds.length) * 100)
         : 0;
-    return { ...course, totalBlocks: allBlockIds.length, completedCount, pct };
+    const totalWeeks = (course.weeks ?? []).length;
+    let currentWeek = totalWeeks;
+    for (let wi = 0; wi < (course.weeks ?? []).length; wi++) {
+      const weekBlockIds = (course.weeks[wi].days ?? []).flatMap((d) =>
+        d.tasks.flatMap((t) => t.blocks.map((b) => b.id))
+      );
+      const allDone = weekBlockIds.length > 0 && weekBlockIds.every((id) => completedIds.has(id));
+      if (!allDone) { currentWeek = wi + 1; break; }
+    }
+    return { ...course, totalBlocks: allBlockIds.length, completedCount, pct, totalWeeks, currentWeek };
   });
 
   const fullName =
@@ -105,125 +130,175 @@ export default async function ProfilePage() {
     profile?.created_at ?? user.created_at
   ).toLocaleDateString("is-IS", { year: "numeric", month: "long" });
 
+  const stats = [
+    { emoji: "🔥", value: streak, label: "STREAK" },
+    { emoji: "💪", value: workoutsCount, label: "ÆFINGAR" },
+    { emoji: "📅", value: completedDaysCount, label: "DAGAR" },
+    { emoji: "⭐", value: purchases.length, label: "NÁMSKEIÐ" },
+  ];
+
+  const menuItems = [
+    {
+      emoji: "⚙️",
+      label: "Stillingar",
+      href: "/settings",
+    },
+    {
+      emoji: "🔔",
+      label: "Tilkynningar",
+      href: "/settings",
+    },
+    {
+      emoji: "🔒",
+      label: "Lykilorð",
+      href: "/settings",
+    },
+    {
+      emoji: "❓",
+      label: "Hjálp & stuðningur",
+      href: "/settings",
+    },
+  ];
+
   return (
     <div style={{ background: "var(--bg)", minHeight: "100vh" }}>
-      <main
-        style={{ maxWidth: 640, margin: "0 auto", padding: "28px 16px 80px" }}
-        className="sm:px-6 space-y-4"
-      >
-        {/* Header */}
+      <main style={{ maxWidth: 680, margin: "0 auto", padding: "24px 20px 100px" }}>
+
+        {/* 1. Profile Header */}
         <div
           style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            marginBottom: 8,
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: 20,
+            padding: "24px 20px",
+            marginBottom: 12,
+            position: "relative",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            {profile?.avatar_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={profile.avatar_url}
-                alt={fullName ?? email}
-                style={{
-                  width: 60,
-                  height: 60,
-                  borderRadius: "50%",
-                  objectFit: "cover",
-                  flexShrink: 0,
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: 60,
-                  height: 60,
-                  borderRadius: "50%",
-                  background: "var(--surface2)",
-                  border: "1px solid var(--border)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 20,
-                  fontWeight: 700,
-                  color: "var(--text)",
-                  flexShrink: 0,
-                }}
-              >
-                {initials}
-              </div>
-            )}
-            <div>
-              <h1
-                style={{
-                  fontFamily: "var(--font-bebas)",
-                  fontSize: 28,
-                  color: "var(--text)",
-                  letterSpacing: "0.04em",
-                  lineHeight: 1,
-                  marginBottom: 4,
-                }}
-              >
-                {fullName ?? email}
-              </h1>
-              {fullName && (
-                <p style={{ fontSize: 12, color: "var(--muted2)" }}>{email}</p>
-              )}
-              <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
-                Meðlimur síðan {memberSince}
-              </p>
-            </div>
-          </div>
-
+          {/* Settings gear */}
           <Link
             href="/settings"
-            style={{ color: "var(--muted2)", marginTop: 4, textDecoration: "none" }}
+            style={{
+              position: "absolute",
+              top: 20,
+              right: 20,
+              color: "var(--muted2)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 36,
+              height: 36,
+              borderRadius: "50%",
+              background: "var(--surface2)",
+              border: "1px solid var(--border)",
+              textDecoration: "none",
+            }}
             title="Stillingar"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                 d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           </Link>
-        </div>
 
-        {/* Streak */}
-        <div
-          style={{
-            background: "var(--surface)",
-            border: "1px solid var(--border)",
-            borderRadius: 14,
-            padding: "16px 20px",
-            display: "flex",
-            alignItems: "center",
-            gap: 14,
-          }}
-        >
-          <span style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>🔥</span>
-          <div>
-            <p
+          {/* Avatar */}
+          <div
+            style={{
+              width: 72,
+              height: 72,
+              borderRadius: "50%",
+              background: "linear-gradient(135deg, var(--accent), #7c3aed)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 14,
+            }}
+          >
+            <span
               style={{
                 fontFamily: "var(--font-bebas)",
-                fontSize: 24,
-                color: "var(--text)",
-                letterSpacing: "0.04em",
+                fontSize: 32,
+                color: "#fff",
+                letterSpacing: "0.02em",
                 lineHeight: 1,
               }}
             >
-              {streak} {streak === 1 ? "DAGUR" : "DAGAR"} Í RÖÐ
-            </p>
-            <p style={{ fontSize: 12, color: "var(--muted2)", marginTop: 3 }}>
-              {streak === 0
-                ? "Ljúktu við æfingu í dag til að byrja strák!"
-                : "Streak í gangi — hald áfram!"}
-            </p>
+              {initials}
+            </span>
           </div>
+
+          {/* Name */}
+          <h1
+            style={{
+              fontFamily: "var(--font-bebas)",
+              fontSize: 28,
+              color: "var(--text)",
+              letterSpacing: "0.04em",
+              lineHeight: 1,
+              marginBottom: 4,
+            }}
+          >
+            {fullName ?? email}
+          </h1>
+          {fullName && (
+            <p style={{ fontSize: 13, color: "var(--muted2)", marginBottom: 4 }}>{email}</p>
+          )}
+          <p style={{ fontSize: 12, color: "var(--muted)" }}>
+            Meðlimur síðan {memberSince}
+          </p>
         </div>
 
-        {/* Enrolled courses */}
-        <section style={{ paddingTop: 8 }}>
+        {/* 2. Stats Row */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: 8,
+            marginBottom: 24,
+          }}
+        >
+          {stats.map((s) => (
+            <div
+              key={s.label}
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: 14,
+                padding: "12px 8px",
+                textAlign: "center",
+              }}
+            >
+              <div style={{ fontSize: 18, marginBottom: 4, lineHeight: 1 }}>{s.emoji}</div>
+              <p
+                style={{
+                  fontFamily: "var(--font-bebas)",
+                  fontSize: 24,
+                  color: "var(--text)",
+                  letterSpacing: "0.04em",
+                  lineHeight: 1,
+                  marginBottom: 3,
+                }}
+              >
+                {s.value}
+              </p>
+              <p
+                style={{
+                  fontSize: 9,
+                  fontWeight: 600,
+                  color: "var(--muted2)",
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                }}
+              >
+                {s.label}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {/* 3. Active Courses */}
+        <section style={{ marginBottom: 24 }}>
           <p
             style={{
               fontSize: 10,
@@ -234,7 +309,7 @@ export default async function ProfilePage() {
               marginBottom: 10,
             }}
           >
-            Mín námskeið
+            MÍN NÁMSKEIÐ
           </p>
 
           {enrolledCourses.length === 0 ? (
@@ -242,7 +317,7 @@ export default async function ProfilePage() {
               style={{
                 background: "var(--surface)",
                 border: "1px solid var(--border)",
-                borderRadius: 14,
+                borderRadius: 16,
                 padding: "32px 20px",
                 textAlign: "center",
               }}
@@ -274,110 +349,172 @@ export default async function ProfilePage() {
                   style={{
                     background: "var(--surface)",
                     border: "1px solid var(--border)",
-                    borderRadius: 14,
-                    overflow: "hidden",
+                    borderRadius: 16,
+                    padding: "14px 16px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 14,
                   }}
                 >
+                  {/* Cover image */}
                   <div
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 14,
-                      padding: "14px 16px",
+                      width: 56,
+                      height: 56,
+                      borderRadius: 10,
+                      overflow: "hidden",
+                      background: "var(--surface2)",
+                      flexShrink: 0,
                     }}
                   >
-                    <div
-                      style={{
-                        width: 56,
-                        height: 40,
-                        borderRadius: 8,
-                        overflow: "hidden",
-                        background: "var(--surface2)",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {course.cover_image ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={course.cover_image}
-                          alt={course.title}
-                          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                        />
-                      ) : (
-                        <div style={{ width: "100%", height: "100%", background: "var(--surface3)" }} />
-                      )}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: "var(--text)",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          marginBottom: 4,
-                        }}
-                      >
-                        {course.title}
-                      </p>
-                      {course.totalBlocks > 0 && (
-                        <>
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              marginBottom: 5,
-                            }}
-                          >
-                            <span style={{ fontSize: 11, color: "var(--muted2)" }}>Framvinda</span>
-                            <span style={{ fontSize: 11, color: "var(--muted2)" }}>
-                              {course.completedCount}/{course.totalBlocks} · {course.pct}%
-                            </span>
-                          </div>
-                          <div
-                            style={{
-                              height: 3,
-                              background: "var(--surface2)",
-                              borderRadius: 999,
-                              overflow: "hidden",
-                            }}
-                          >
-                            <div
-                              style={{
-                                height: "100%",
-                                width: `${course.pct}%`,
-                                background: "var(--accent)",
-                                borderRadius: 999,
-                              }}
-                            />
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    <Link
-                      href={`/courses/${course.slug}`}
-                      style={{
-                        flexShrink: 0,
-                        background: "var(--surface2)",
-                        border: "1px solid var(--border)",
-                        color: "var(--text)",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        padding: "8px 14px",
-                        borderRadius: 8,
-                        textDecoration: "none",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      Halda áfram
-                    </Link>
+                    {course.cover_image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={course.cover_image}
+                        alt={course.title}
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                    ) : (
+                      <div style={{ width: "100%", height: "100%", background: "var(--surface3)" }} />
+                    )}
                   </div>
+
+                  {/* Course info */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: "var(--text)",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        marginBottom: 3,
+                      }}
+                    >
+                      {course.title}
+                    </p>
+                    <p style={{ fontSize: 12, color: "var(--muted2)", marginBottom: 8 }}>
+                      Vika {course.currentWeek} af {course.totalWeeks}
+                    </p>
+                    {course.totalBlocks > 0 && (
+                      <>
+                        <div
+                          style={{
+                            height: 4,
+                            background: "var(--surface2)",
+                            borderRadius: 999,
+                            overflow: "hidden",
+                            marginBottom: 4,
+                          }}
+                        >
+                          <div
+                            style={{
+                              height: "100%",
+                              width: `${course.pct}%`,
+                              background: "linear-gradient(90deg, var(--accent), var(--success))",
+                              borderRadius: 999,
+                            }}
+                          />
+                        </div>
+                        <p style={{ fontSize: 11, color: "var(--muted2)" }}>{course.pct}% lokið</p>
+                      </>
+                    )}
+                  </div>
+
+                  {/* CTA */}
+                  <Link
+                    href={`/courses/${course.slug}`}
+                    style={{
+                      flexShrink: 0,
+                      color: "var(--accent)",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      textDecoration: "none",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Halda áfram →
+                  </Link>
                 </div>
               ))}
             </div>
           )}
         </section>
+
+        {/* 4. Menu Items */}
+        <section style={{ marginBottom: 24 }}>
+          <p
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              color: "var(--muted2)",
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              marginBottom: 10,
+            }}
+          >
+            STILLINGAR
+          </p>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {menuItems.map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                style={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 14,
+                  padding: "14px 16px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  textDecoration: "none",
+                }}
+              >
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    background: "var(--surface2)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 16,
+                    flexShrink: 0,
+                  }}
+                >
+                  {item.emoji}
+                </div>
+                <span
+                  style={{
+                    flex: 1,
+                    fontSize: 14,
+                    fontWeight: 500,
+                    color: "var(--text)",
+                  }}
+                >
+                  {item.label}
+                </span>
+                <svg
+                  width="16"
+                  height="16"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  style={{ color: "var(--muted)", flexShrink: 0 }}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        {/* 5. Sign Out */}
+        <ProfileSignOut />
       </main>
     </div>
   );
