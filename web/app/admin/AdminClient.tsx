@@ -89,14 +89,6 @@ const btnGhost =
 // Admin accent colour — applied inline where Tailwind JIT can't pick up dynamic values
 const ACCENT = "#F5A623";
 
-const TASK_COLOR_PRESETS = [
-  "#F5A623", // orange
-  "#EF4444", // red
-  "#22C55E", // green
-  "#3B82F6", // blue
-  "#8B5CF6", // purple
-  "#14B8A6", // teal
-];
 
 const CATEGORIES = [
   "Styrkur",
@@ -1611,646 +1603,424 @@ function CourseBuilderTab() {
     );
   };
 
+  // ── Shared inline style helpers ───────────────────────────────────────────────
+  const btnMuted = {
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    color: "var(--muted2)",
+    fontSize: 12,
+    fontWeight: 500,
+  } as const;
+
+  const arrowBtn = (disabled: boolean) => ({
+    background: "none",
+    border: "none",
+    cursor: disabled ? "default" : "pointer",
+    color: "var(--muted2)",
+    opacity: disabled ? 0.2 : 1,
+    padding: 0,
+    lineHeight: 1,
+  } as const);
+
+  const dashedAddBtn = {
+    width: "100%",
+    background: "transparent",
+    border: "1px dashed var(--border)",
+    borderRadius: 10,
+    padding: 12,
+    color: "var(--muted2)",
+    fontSize: 13,
+    cursor: "pointer",
+  } as const;
+
   return (
     <>
       {toast && <Toast msg={toast.msg} type={toast.type} />}
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-zinc-100">Course Builder</h2>
-        </div>
 
-        {/* Course selector */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-          <Field label="Select Course">
-            <select
-              value={selectedCourseId}
-              onChange={(e) => handleCourseChange(e.target.value)}
-              className={inp}
-            >
-              <option value="">— choose a course —</option>
-              {courses.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.title}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
+      {/* Course selector */}
+      <div style={{ marginBottom: 20, position: "relative" }}>
+        <select
+          value={selectedCourseId}
+          onChange={(e) => handleCourseChange(e.target.value)}
+          style={{
+            width: "100%",
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: 12,
+            padding: "12px 16px",
+            fontSize: 14,
+            color: "var(--text)",
+            outline: "none",
+            appearance: "none",
+            cursor: "pointer",
+          }}
+        >
+          <option value="">— Veldu námskeið —</option>
+          {courses.map((c) => (
+            <option key={c.id} value={c.id}>{c.title}</option>
+          ))}
+        </select>
+      </div>
 
-        {/* Weeks */}
-        {selectedCourseId && (
-          <div className="space-y-3">
-            {loadingWeeks ? (
-              <Spinner />
-            ) : (
-              <>
-                {weeks.length === 0 && (
-                  <p className="text-zinc-500 text-sm text-center py-8">
-                    No weeks yet. Add the first week below.
-                  </p>
-                )}
+      {/* Weeks */}
+      {selectedCourseId && (
+        <div>
+          {loadingWeeks ? (
+            <Spinner />
+          ) : (
+            <>
+              {weeks.length === 0 && (
+                <p style={{ color: "var(--muted2)", textAlign: "center", padding: "32px 0", fontSize: 14 }}>
+                  Engar vikur enn. Bættu við fyrstu vikunni hér að neðan.
+                </p>
+              )}
 
-                {weeks.map((week, weekIdx) => {
-                  const expanded = expandedWeeks.has(week.id);
-                  return (
+              {weeks.map((week, weekIdx) => {
+                const weekExpanded = expandedWeeks.has(week.id);
+                return (
+                  <div
+                    key={week.id}
+                    style={{
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 14,
+                      marginBottom: 12,
+                      overflow: "hidden",
+                    }}
+                  >
+                    {/* Week header */}
                     <div
-                      key={week.id}
-                      className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden"
+                      style={{ display: "flex", alignItems: "center", padding: "16px 20px", gap: 10, cursor: "pointer" }}
+                      onClick={() => toggleWeek(week.id)}
                     >
-                      {/* Week header */}
-                      <div className="flex items-center gap-3 px-5 py-4">
-                        <button
-                          onClick={() => toggleWeek(week.id)}
-                          className="text-zinc-400 hover:text-zinc-200 transition-colors"
-                          aria-label={expanded ? "Collapse" : "Expand"}
-                        >
-                          <svg
-                            className={`w-4 h-4 transition-transform ${expanded ? "rotate-90" : ""}`}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M9 5l7 7-7 7"
-                            />
-                          </svg>
+                      <svg
+                        style={{ width: 14, height: 14, color: "var(--muted2)", flexShrink: 0, transform: weekExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }}
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                      <input
+                        defaultValue={week.title}
+                        onBlur={(e) => { if (e.target.value !== week.title) updateWeekTitle(week.id, e.target.value); }}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ flex: 1, background: "transparent", border: "none", fontFamily: "var(--font-bebas)", fontSize: 18, letterSpacing: "0.04em", color: "var(--text)", outline: "none", cursor: "text" }}
+                      />
+                      <span style={{ fontSize: 12, color: "var(--muted2)", flexShrink: 0 }}>
+                        {week.days?.length ?? 0} dagar
+                      </span>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                        <button onClick={(e) => { e.preventDefault(); moveWeek(week.id, "up"); }} style={arrowBtn(weekIdx === 0)} aria-label="Upp">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
                         </button>
-                        <input
-                          defaultValue={week.title}
-                          onBlur={(e) => {
-                            if (e.target.value !== week.title)
-                              updateWeekTitle(week.id, e.target.value);
-                          }}
-                          className="flex-1 bg-transparent text-sm font-semibold text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-600 rounded px-1"
-                        />
-                        <span className="text-xs text-zinc-600">
-                          {week.days?.length ?? 0} day
-                          {(week.days?.length ?? 0) !== 1 ? "s" : ""}
-                        </span>
-                        <div className="flex flex-col gap-0.5 shrink-0">
-                          <button
-                            onClick={(e) => { e.preventDefault(); moveWeek(week.id, "up"); }}
-                            disabled={weekIdx === 0}
-                            className="text-zinc-600 hover:text-zinc-300 disabled:opacity-20 transition-colors"
-                            aria-label="Move week up"
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={(e) => { e.preventDefault(); moveWeek(week.id, "down"); }}
-                            disabled={weekIdx === weeks.length - 1}
-                            className="text-zinc-600 hover:text-zinc-300 disabled:opacity-20 transition-colors"
-                            aria-label="Move week down"
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                          </button>
-                        </div>
-                        <ConfirmDelete
-                          label={week.title}
-                          onConfirm={() => deleteWeek(week.id)}
-                        />
+                        <button onClick={(e) => { e.preventDefault(); moveWeek(week.id, "down"); }} style={arrowBtn(weekIdx === weeks.length - 1)} aria-label="Niður">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        </button>
                       </div>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <ConfirmDelete label={week.title} onConfirm={() => deleteWeek(week.id)} />
+                      </div>
+                    </div>
 
-                      {/* Days */}
-                      {expanded && (
-                        <div className="border-t border-zinc-800 divide-y divide-zinc-800">
-                          {(week.days ?? []).map((day, dayIdx) => {
-                            const isEditing = editingDay === day.id;
-                            const f = dayForms[day.id] ?? {};
-                            const totalDays = week.days?.length ?? 0;
+                    {/* Days */}
+                    {weekExpanded && (
+                      <div style={{ padding: "0 16px 16px", borderTop: "1px solid var(--border)" }}>
+                        {(week.days ?? []).map((day, dayIdx) => {
+                          const isEditing = editingDay === day.id;
+                          const f = dayForms[day.id] ?? {};
+                          const totalDays = week.days?.length ?? 0;
+                          const dayExpanded = expandedDays.has(day.id);
 
-                            return (
-                              <div key={day.id} className="px-6 py-4 space-y-4">
-                                {/* Day header row */}
+                          return (
+                            <div
+                              key={day.id}
+                              style={{
+                                background: "var(--surface2)",
+                                border: "1px solid var(--border)",
+                                borderRadius: 12,
+                                marginTop: 12,
+                                overflow: "hidden",
+                              }}
+                            >
+                              <div style={{ padding: "14px 16px" }}>
                                 {isEditing ? (
-                                  <div className="space-y-3">
-                                    <Field label="Title">
-                                      <input
-                                        value={f.title ?? ""}
-                                        onChange={(e) =>
-                                          setDayForms((prev) => ({
-                                            ...prev,
-                                            [day.id]: { ...prev[day.id], title: e.target.value },
-                                          }))
-                                        }
-                                        className={inp}
-                                      />
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                                    <Field label="Titill">
+                                      <input value={f.title ?? ""} onChange={(e) => setDayForms((prev) => ({ ...prev, [day.id]: { ...prev[day.id], title: e.target.value } }))} className={inp} />
                                     </Field>
-                                    <Field label="Description">
-                                      <textarea
-                                        value={f.description ?? ""}
-                                        onChange={(e) =>
-                                          setDayForms((prev) => ({
-                                            ...prev,
-                                            [day.id]: { ...prev[day.id], description: e.target.value },
-                                          }))
-                                        }
-                                        className={`${inp} h-20 resize-none`}
-                                        placeholder="Intro text shown at the top of this day…"
-                                      />
+                                    <Field label="Lýsing">
+                                      <textarea value={f.description ?? ""} onChange={(e) => setDayForms((prev) => ({ ...prev, [day.id]: { ...prev[day.id], description: e.target.value } }))} className={`${inp} h-20 resize-none`} placeholder="Inngangstexti sem birtist efst á þessum degi…" />
                                     </Field>
-                                    <div className="flex items-center gap-3 pt-1">
-                                      <button
-                                        onClick={() => saveDay(day.id)}
-                                        className={btnPrimary}
-                                        style={{ backgroundColor: ACCENT }}
-                                      >
-                                        Save Day
-                                      </button>
-                                      <button
-                                        onClick={() => setEditingDay(null)}
-                                        className={btnGhost}
-                                      >
-                                        Cancel
-                                      </button>
+                                    <div style={{ display: "flex", gap: 8 }}>
+                                      <button onClick={() => saveDay(day.id)} className={btnPrimary} style={{ backgroundColor: ACCENT }}>Vista dag</button>
+                                      <button onClick={() => setEditingDay(null)} className={btnGhost}>Hætta við</button>
                                     </div>
                                   </div>
                                 ) : (
-                                  <div className="flex items-center gap-3">
-                                    <button
-                                      onClick={(e) => { e.preventDefault(); toggleDay(day.id); }}
-                                      className="text-zinc-500 hover:text-zinc-200 transition-colors shrink-0"
-                                      aria-label={expandedDays.has(day.id) ? "Collapse day" : "Expand day"}
-                                    >
-                                      <svg
-                                        className={`w-3.5 h-3.5 transition-transform ${expandedDays.has(day.id) ? "rotate-90" : ""}`}
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                      >
+                                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                    <button onClick={(e) => { e.preventDefault(); toggleDay(day.id); }} style={{ ...btnMuted, padding: 0 }}>
+                                      <svg style={{ width: 12, height: 12, transform: dayExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                       </svg>
                                     </button>
-                                    <div
-                                      className="flex-1 min-w-0 cursor-pointer select-none"
-                                      onClick={() => toggleDay(day.id)}
-                                    >
-                                      <p className="text-sm font-semibold text-zinc-100">{day.title}</p>
+                                    <div style={{ flex: 1, minWidth: 0, cursor: "pointer" }} onClick={() => toggleDay(day.id)}>
+                                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>{day.title}</p>
                                       {day.description && (
-                                        <p className="text-xs text-zinc-500 mt-0.5 line-clamp-1">{day.description}</p>
+                                        <p style={{ fontSize: 12, color: "var(--muted2)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{day.description}</p>
                                       )}
-                                      <p className="text-xs text-zinc-600 mt-0.5">
-                                        {day.tasks?.length ?? 0} task{(day.tasks?.length ?? 0) !== 1 ? "s" : ""}
-                                      </p>
+                                      <p style={{ fontSize: 11, color: "var(--muted2)", marginTop: 2 }}>{day.tasks?.length ?? 0} verkefni</p>
                                     </div>
-                                    <div className="flex items-center gap-3 shrink-0">
-                                      <div className="flex flex-col gap-0.5">
-                                        <button
-                                          onClick={(e) => { e.preventDefault(); moveDay(day.id, "up"); }}
-                                          disabled={dayIdx === 0}
-                                          className="text-zinc-600 hover:text-zinc-300 disabled:opacity-20 transition-colors"
-                                          aria-label="Move day up"
-                                        >
-                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                                          </svg>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+                                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                        <button onClick={(e) => { e.preventDefault(); moveDay(day.id, "up"); }} style={arrowBtn(dayIdx === 0)}>
+                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
                                         </button>
-                                        <button
-                                          onClick={(e) => { e.preventDefault(); moveDay(day.id, "down"); }}
-                                          disabled={dayIdx === totalDays - 1}
-                                          className="text-zinc-600 hover:text-zinc-300 disabled:opacity-20 transition-colors"
-                                          aria-label="Move day down"
-                                        >
-                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                          </svg>
+                                        <button onClick={(e) => { e.preventDefault(); moveDay(day.id, "down"); }} style={arrowBtn(dayIdx === totalDays - 1)}>
+                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                                         </button>
                                       </div>
-                                      <button
-                                        onClick={() => startEditDay(day)}
-                                        className="text-xs text-zinc-400 hover:text-zinc-100 transition-colors font-medium"
-                                      >
-                                        Edit
-                                      </button>
-                                      <button
-                                        onClick={() => duplicateDay(day)}
-                                        className="text-xs text-zinc-400 hover:text-zinc-100 transition-colors font-medium"
-                                      >
-                                        Duplicate
-                                      </button>
-                                      <ConfirmDelete
-                                        label={day.title}
-                                        onConfirm={() => deleteDay(day.id)}
-                                      />
+                                      <button onClick={() => startEditDay(day)} style={btnMuted}>Breyta</button>
+                                      <button onClick={() => duplicateDay(day)} style={btnMuted}>Afrita</button>
+                                      <ConfirmDelete label={day.title} onConfirm={() => deleteDay(day.id)} />
                                     </div>
                                   </div>
                                 )}
+                              </div>
 
-                                {/* Tasks */}
-                                {expandedDays.has(day.id) && (
-                                <div className="pl-4 space-y-3">
-                                  {(day.tasks ?? []).map((task) => (
-                                    <div
-                                      key={task.id}
-                                      className="bg-zinc-800/60 rounded-xl border border-zinc-700 overflow-hidden"
-                                    >
-                                      {/* Task color bar */}
-                                      <div className="h-1" style={{ backgroundColor: task.color }} />
-
-                                      {/* Task header */}
-                                      <div className="flex items-center gap-3 px-4 py-2.5">
-                                        <div className="flex items-center gap-1 shrink-0">
-                                          {TASK_COLOR_PRESETS.map((c) => (
-                                            <button
-                                              key={c}
-                                              onClick={(e) => { e.preventDefault(); updateTaskField(task.id, { color: c }); }}
-                                              className="w-4 h-4 rounded-full transition-transform hover:scale-125 focus:outline-none"
-                                              style={{ backgroundColor: c }}
-                                              aria-label={`Set color ${c}`}
-                                            >
-                                              {task.color === c && (
-                                                <span className="flex items-center justify-center w-full h-full">
-                                                  <span className="w-1.5 h-1.5 rounded-full bg-white/80" />
-                                                </span>
-                                              )}
-                                            </button>
-                                          ))}
+                              {/* Tasks */}
+                              {dayExpanded && (
+                                <div style={{ padding: "0 12px 12px", borderTop: "1px solid var(--border)" }}>
+                                  {(day.tasks ?? []).map((task) => {
+                                    const taskExpanded = expandedTasks.has(task.id);
+                                    const borderColor = task.color || "var(--accent)";
+                                    return (
+                                      <div
+                                        key={task.id}
+                                        style={{
+                                          background: "var(--surface3)",
+                                          borderRadius: 10,
+                                          borderLeft: `3px solid ${borderColor}`,
+                                          marginBottom: 8,
+                                          marginTop: 8,
+                                          overflow: "hidden",
+                                        }}
+                                      >
+                                        {/* Task header */}
+                                        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px" }}>
+                                          <input
+                                            defaultValue={task.name}
+                                            onBlur={(e) => { if (e.target.value !== task.name) updateTaskField(task.id, { name: e.target.value }); }}
+                                            style={{ flex: 1, background: "transparent", border: "none", fontSize: 14, fontWeight: 600, color: "var(--text)", outline: "none" }}
+                                          />
+                                          {!taskExpanded && (task.blocks?.length ?? 0) > 0 && (
+                                            <span style={{ fontSize: 11, color: "var(--muted2)", flexShrink: 0 }}>
+                                              {task.blocks.length} blokkir
+                                            </span>
+                                          )}
+                                          <button onClick={(e) => { e.preventDefault(); toggleTask(task.id); }} style={{ ...btnMuted, padding: 0 }}>
+                                            <svg style={{ width: 14, height: 14, transform: taskExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                            </svg>
+                                          </button>
+                                          <ConfirmDelete label={task.name} onConfirm={() => deleteTask(task.id)} />
                                         </div>
-                                        <input
-                                          defaultValue={task.name}
-                                          onBlur={(e) => {
-                                            if (e.target.value !== task.name)
-                                              updateTaskField(task.id, { name: e.target.value });
-                                          }}
-                                          className="flex-1 bg-transparent text-sm font-medium text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-600 rounded px-1"
-                                        />
-                                        {!expandedTasks.has(task.id) && (task.blocks?.length ?? 0) > 0 && (
-                                          <span className="text-[10px] text-zinc-600 shrink-0 tabular-nums">
-                                            {task.blocks.length} block{task.blocks.length !== 1 ? "s" : ""}
-                                          </span>
-                                        )}
-                                        <button
-                                          onClick={(e) => { e.preventDefault(); toggleTask(task.id); }}
-                                          className="text-zinc-500 hover:text-zinc-200 transition-colors shrink-0"
-                                          aria-label={expandedTasks.has(task.id) ? "Collapse task" : "Expand task"}
-                                        >
-                                          <svg
-                                            className={`w-3.5 h-3.5 transition-transform ${expandedTasks.has(task.id) ? "rotate-90" : ""}`}
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
-                                          >
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                          </svg>
-                                        </button>
-                                        <ConfirmDelete
-                                          label={task.name}
-                                          onConfirm={() => deleteTask(task.id)}
-                                        />
-                                      </div>
 
-                                      {/* Task body — video, blocks, add block */}
-                                      {expandedTasks.has(task.id) && (<>
-                                      {/* Task video */}
-                                      <div className="flex items-center gap-2 px-4 py-2 border-t border-zinc-700/40">
-                                        <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider shrink-0 w-10">
-                                          Video
-                                        </span>
-                                        {(() => {
-                                          const status = taskVideoStatus[task.id] ?? "idle";
-                                          const isUploading = ["requesting", "uploading", "processing"].includes(status);
-                                          return (
-                                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                                              <label className={`cursor-pointer shrink-0 ${isUploading ? "pointer-events-none opacity-60" : ""}`}>
-                                                <span className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-zinc-700 border border-zinc-600 text-zinc-300 hover:bg-zinc-600 transition-colors whitespace-nowrap">
-                                                  {status === "done" || task.video_url ? "Replace" : "Choose file"}
-                                                </span>
-                                                <input
-                                                  type="file"
-                                                  accept="video/*"
-                                                  className="sr-only"
-                                                  disabled={isUploading}
-                                                  onChange={(e) => {
-                                                    const file = e.target.files?.[0];
-                                                    if (file) uploadTaskVideoMux(task.id, file);
-                                                    e.target.value = "";
-                                                  }}
-                                                />
-                                              </label>
-                                              {status === "idle" && task.video_url && (
-                                                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-zinc-300 bg-zinc-700 border border-zinc-600 px-2 py-0.5 rounded-full">
-                                                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
-                                                  Mux
-                                                </span>
-                                              )}
-                                              {status !== "idle" && (
-                                                <div className="flex items-center gap-1.5">
-                                                  {isUploading && (
-                                                    <div className="w-2.5 h-2.5 border border-zinc-600 border-t-zinc-300 rounded-full animate-spin shrink-0" />
-                                                  )}
-                                                  {status === "done" && (
-                                                    <svg className="w-3 h-3 text-green-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                    </svg>
-                                                  )}
-                                                  {status === "error" && (
-                                                    <svg className="w-3 h-3 text-red-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                                    </svg>
-                                                  )}
-                                                  <span className={`text-[10px] ${status === "done" ? "text-green-500" : status === "error" ? "text-red-400" : "text-zinc-400"}`}>
-                                                    {{ requesting: "Requesting…", uploading: "Uploading…", processing: "Processing…", done: "Ready", error: "Failed", idle: "" }[status]}
-                                                  </span>
-                                                </div>
-                                              )}
-                                            </div>
-                                          );
-                                        })()}
-                                      </div>
-
-                                      {/* Blocks */}
-                                      <div className="divide-y divide-zinc-700/50 border-t border-zinc-700/40">
-                                        {(task.blocks ?? []).map((block, blockIdx) => (
-                                          <div key={block.id} className="px-4 py-2.5 space-y-2">
-                                            <div className="flex items-start gap-2">
-                                              {/* Up/down arrows */}
-                                              <div className="flex flex-col gap-0.5 shrink-0 pt-0.5">
-                                                <button
-                                                  onClick={() => moveBlock(block.id, "up", task.blocks)}
-                                                  disabled={blockIdx === 0}
-                                                  className="text-zinc-600 hover:text-zinc-300 disabled:opacity-20 transition-colors"
-                                                  aria-label="Move up"
-                                                >
-                                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                                                  </svg>
-                                                </button>
-                                                <button
-                                                  onClick={() => moveBlock(block.id, "down", task.blocks)}
-                                                  disabled={blockIdx === (task.blocks?.length ?? 1) - 1}
-                                                  className="text-zinc-600 hover:text-zinc-300 disabled:opacity-20 transition-colors"
-                                                  aria-label="Move down"
-                                                >
-                                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                                  </svg>
-                                                </button>
-                                              </div>
-
-                                              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mt-0.5 w-10 shrink-0">
-                                                {block.type}
-                                              </span>
-
-                                              {block.type === "exercise" ? (
-                                                block.exercise_id && exBlockSearch[block.id] === undefined ? (
-                                                  // Tag: exercise selected, not in search mode
-                                                  <div className="flex-1 flex items-center min-w-0">
-                                                    <span className="inline-flex items-center gap-1 text-xs bg-zinc-600 border border-zinc-500 rounded-full px-2.5 py-0.5 text-zinc-100 min-w-0 max-w-full">
-                                                      <span className="truncate">{exercises.find((e) => e.id === block.exercise_id)?.name ?? "Unknown"}</span>
-                                                      <button
-                                                        onClick={(e) => {
-                                                          e.preventDefault();
-                                                          clearBlockExercise(block.id);
-                                                          setExBlockSearch((prev) => ({ ...prev, [block.id]: "" }));
-                                                        }}
-                                                        className="text-zinc-400 hover:text-white shrink-0 leading-none"
-                                                        aria-label="Clear exercise"
-                                                      >×</button>
+                                        {/* Task body */}
+                                        {taskExpanded && (<>
+                                          {/* Task video */}
+                                          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderTop: "1px solid var(--border)" }}>
+                                            <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--muted2)", flexShrink: 0, width: 36 }}>Video</span>
+                                            {(() => {
+                                              const status = taskVideoStatus[task.id] ?? "idle";
+                                              const isUploading = ["requesting", "uploading", "processing"].includes(status);
+                                              return (
+                                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                                  <label style={{ cursor: isUploading ? "default" : "pointer", opacity: isUploading ? 0.6 : 1 }}>
+                                                    <span style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6, background: "var(--surface)", border: "1px solid var(--border)", color: "var(--muted2)", whiteSpace: "nowrap" }}>
+                                                      {status === "done" || task.video_url ? "Skipta um" : "Velja skrá"}
                                                     </span>
-                                                  </div>
-                                                ) : (
-                                                  // Search mode
-                                                  <div className="flex-1 space-y-1 min-w-0">
-                                                    <input
-                                                      type="search"
-                                                      value={exBlockSearch[block.id] ?? ""}
-                                                      onChange={(e) => setExBlockSearch((prev) => ({ ...prev, [block.id]: e.target.value }))}
-                                                      className="w-full bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none"
-                                                      placeholder="Search exercise…"
-                                                    />
-                                                    <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
-                                                      {exercises
-                                                        .filter((ex) => {
-                                                          const q = (exBlockSearch[block.id] ?? "").toLowerCase();
-                                                          return !q || ex.name.toLowerCase().includes(q) || ex.category.toLowerCase().includes(q);
-                                                        })
-                                                        .slice(0, 16)
-                                                        .map((ex) => (
-                                                          <button
-                                                            key={ex.id}
-                                                            onClick={(e) => {
-                                                              e.preventDefault();
-                                                              updateBlockExercise(block.id, ex.id);
-                                                              setExBlockSearch((prev) => {
-                                                                const next = { ...prev };
-                                                                delete next[block.id];
-                                                                return next;
-                                                              });
-                                                            }}
-                                                            className="text-xs px-2 py-0.5 rounded-full bg-zinc-700 border border-zinc-600 text-zinc-200 hover:bg-zinc-600 transition-colors"
-                                                          >
-                                                            {ex.name}
-                                                          </button>
-                                                        ))}
-                                                    </div>
-                                                  </div>
-                                                )
-                                              ) : (
-                                                <textarea
-                                                  defaultValue={block.content ?? ""}
-                                                  onBlur={(e) => {
-                                                    if (e.target.value !== (block.content ?? ""))
-                                                      updateBlockContent(block.id, e.target.value);
-                                                  }}
-                                                  className="flex-1 bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 resize-none h-16 focus:outline-none"
-                                                  placeholder="Text content…"
-                                                />
-                                              )}
-                                              <ConfirmDelete
-                                                label="block"
-                                                onConfirm={() => deleteBlock(block.id)}
-                                              />
-                                            </div>
+                                                    <input type="file" accept="video/*" className="sr-only" disabled={isUploading} onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadTaskVideoMux(task.id, file); e.target.value = ""; }} />
+                                                  </label>
+                                                  {status === "idle" && task.video_url && (
+                                                    <span style={{ fontSize: 10, color: "var(--success)" }}>● Mux</span>
+                                                  )}
+                                                  {status !== "idle" && (
+                                                    <span style={{ fontSize: 10, color: status === "done" ? "var(--success)" : status === "error" ? "#ef4444" : "var(--muted2)" }}>
+                                                      {{ requesting: "Bið…", uploading: "Hleður…", processing: "Vinnur…", done: "Tilbúið", error: "Villa", idle: "" }[status]}
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              );
+                                            })()}
+                                          </div>
 
-                                            {/* Sets / Reps / Load (exercise blocks only) */}
-                                            {block.type === "exercise" && (
-                                              <div className="flex gap-1.5 pl-14">
+                                          {/* Blocks */}
+                                          <div style={{ borderTop: "1px solid var(--border)" }}>
+                                            {(task.blocks ?? []).map((block, blockIdx) => {
+                                              const isLast = blockIdx === (task.blocks?.length ?? 1) - 1;
+                                              return (
+                                                <div key={block.id} style={{ borderBottom: isLast ? "none" : "1px solid var(--border)" }}>
+                                                  {block.type === "exercise" ? (
+                                                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", background: "var(--surface)" }}>
+                                                      <span style={{ color: "var(--muted2)", cursor: "grab", fontSize: 14, paddingTop: 2, flexShrink: 0, userSelect: "none" }}>≡</span>
+                                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                                        {/* Exercise tag or search */}
+                                                        {block.exercise_id && exBlockSearch[block.id] === undefined ? (
+                                                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 20, padding: "3px 10px", fontSize: 13, fontWeight: 500, color: "var(--text)", maxWidth: "100%" }}>
+                                                              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                                {exercises.find((e) => e.id === block.exercise_id)?.name ?? "Óþekkt"}
+                                                              </span>
+                                                              <span style={{ fontSize: 10, color: "var(--muted2)", flexShrink: 0 }}>
+                                                                {exercises.find((e) => e.id === block.exercise_id)?.category}
+                                                              </span>
+                                                              <button onClick={(e) => { e.preventDefault(); clearBlockExercise(block.id); setExBlockSearch((prev) => ({ ...prev, [block.id]: "" })); }} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted2)", flexShrink: 0, lineHeight: 1 }}>×</button>
+                                                            </span>
+                                                          </div>
+                                                        ) : (
+                                                          <div style={{ marginBottom: 10 }}>
+                                                            <input type="search" value={exBlockSearch[block.id] ?? ""} onChange={(e) => setExBlockSearch((prev) => ({ ...prev, [block.id]: e.target.value }))} style={{ width: "100%", background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 10px", fontSize: 12, color: "var(--text)", outline: "none", boxSizing: "border-box" }} placeholder="Leita að æfingu…" />
+                                                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4, maxHeight: 80, overflowY: "auto" }}>
+                                                              {exercises.filter((ex) => { const q = (exBlockSearch[block.id] ?? "").toLowerCase(); return !q || ex.name.toLowerCase().includes(q) || ex.category.toLowerCase().includes(q); }).slice(0, 16).map((ex) => (
+                                                                <button key={ex.id} onClick={(e) => { e.preventDefault(); updateBlockExercise(block.id, ex.id); setExBlockSearch((prev) => { const next = { ...prev }; delete next[block.id]; return next; }); }} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 20, background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", cursor: "pointer" }}>
+                                                                  {ex.name}
+                                                                </button>
+                                                              ))}
+                                                            </div>
+                                                          </div>
+                                                        )}
+                                                        {/* Sets / Reps / Load */}
+                                                        <div style={{ display: "flex", gap: 8 }}>
+                                                          {([
+                                                            { key: "sets", label: "SET", val: block.sets, save: (v: string | null) => updateBlockFields(block.id, { sets: v }) },
+                                                            { key: "reps", label: "REPS", val: block.reps, save: (v: string | null) => updateBlockFields(block.id, { reps: v }) },
+                                                            { key: "load", label: "LOAD", val: block.load, save: (v: string | null) => updateBlockFields(block.id, { load: v }) },
+                                                          ] as const).map(({ key, label, val, save }) => (
+                                                            <div key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                                                              <input
+                                                                defaultValue={val ?? ""}
+                                                                onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== (val ?? null)) save(v); }}
+                                                                style={{ width: 64, background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 8, textAlign: "center", fontFamily: "var(--font-bebas)", fontSize: 20, color: "var(--text)", outline: "none", padding: "4px 4px" }}
+                                                                placeholder="—"
+                                                              />
+                                                              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: "var(--muted2)", textTransform: "uppercase" }}>{label}</span>
+                                                            </div>
+                                                          ))}
+                                                        </div>
+                                                      </div>
+                                                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                                                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                                          <button onClick={() => moveBlock(block.id, "up", task.blocks)} style={arrowBtn(blockIdx === 0)}>
+                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
+                                                          </button>
+                                                          <button onClick={() => moveBlock(block.id, "down", task.blocks)} style={arrowBtn(isLast)}>
+                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                                          </button>
+                                                        </div>
+                                                        <ConfirmDelete label="blokk" onConfirm={() => deleteBlock(block.id)} />
+                                                      </div>
+                                                    </div>
+                                                  ) : (
+                                                    // TEXT BLOCK
+                                                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", background: "var(--surface2)" }}>
+                                                      <span style={{ color: "var(--muted2)", cursor: "grab", fontSize: 14, paddingTop: 4, flexShrink: 0, userSelect: "none" }}>≡</span>
+                                                      <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--muted2)", paddingTop: 6, flexShrink: 0, width: 36 }}>TEXTI</span>
+                                                      <textarea
+                                                        defaultValue={block.content ?? ""}
+                                                        onBlur={(e) => { if (e.target.value !== (block.content ?? "")) updateBlockContent(block.id, e.target.value); }}
+                                                        style={{ flex: 1, background: "transparent", border: "none", color: "var(--text)", fontSize: 13, minHeight: 60, resize: "vertical", outline: "none", padding: "4px 8px" }}
+                                                        placeholder="Texti…"
+                                                      />
+                                                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                                                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                                          <button onClick={() => moveBlock(block.id, "up", task.blocks)} style={arrowBtn(blockIdx === 0)}>
+                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
+                                                          </button>
+                                                          <button onClick={() => moveBlock(block.id, "down", task.blocks)} style={arrowBtn(isLast)}>
+                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                                          </button>
+                                                        </div>
+                                                        <ConfirmDelete label="blokk" onConfirm={() => deleteBlock(block.id)} />
+                                                      </div>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+
+                                          {/* Add block */}
+                                          <div style={{ padding: "10px 14px", borderTop: "1px solid var(--border)" }}>
+                                            {showExSelectForTask === task.id ? (
+                                              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                                                 <input
-                                                  defaultValue={block.sets ?? ""}
-                                                  onBlur={(e) => {
-                                                    const val = e.target.value.trim() || null;
-                                                    if (val !== (block.sets ?? null))
-                                                      updateBlockFields(block.id, { sets: val });
-                                                  }}
-                                                  className="w-16 bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none"
-                                                  placeholder="Sets"
+                                                  autoFocus
+                                                  type="search"
+                                                  value={exSearchForTask[task.id] ?? ""}
+                                                  onChange={(e) => setExSearchForTask((prev) => ({ ...prev, [task.id]: e.target.value }))}
+                                                  style={{ width: "100%", background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--text)", outline: "none", boxSizing: "border-box" }}
+                                                  placeholder="Leita eftir nafni eða flokki…"
                                                 />
-                                                <input
-                                                  defaultValue={block.reps ?? ""}
-                                                  onBlur={(e) => {
-                                                    const val = e.target.value.trim() || null;
-                                                    if (val !== (block.reps ?? null))
-                                                      updateBlockFields(block.id, { reps: val });
-                                                  }}
-                                                  className="w-16 bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none"
-                                                  placeholder="Reps"
-                                                />
-                                                <input
-                                                  defaultValue={block.load ?? ""}
-                                                  onBlur={(e) => {
-                                                    const val = e.target.value.trim() || null;
-                                                    if (val !== (block.load ?? null))
-                                                      updateBlockFields(block.id, { load: val });
-                                                  }}
-                                                  className="w-20 bg-zinc-700 border border-zinc-600 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none"
-                                                  placeholder="Load"
-                                                />
+                                                <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+                                                  {(() => {
+                                                    const q = (exSearchForTask[task.id] ?? "").toLowerCase();
+                                                    const results = exercises.filter((ex) => !q || ex.name.toLowerCase().includes(q) || ex.category.toLowerCase().includes(q)).slice(0, 10);
+                                                    if (exercises.length === 0) return <p style={{ padding: "8px 12px", fontSize: 12, color: "var(--muted2)" }}>Bættu við æfingum í Æfingabanka fyrst.</p>;
+                                                    if (results.length === 0) return <p style={{ padding: "8px 12px", fontSize: 12, color: "var(--muted2)" }}>Engar æfingar passa.</p>;
+                                                    return results.map((ex) => (
+                                                      <button key={ex.id} onClick={(e) => { e.preventDefault(); addBlock(task.id, task.blocks?.length ?? 0, "exercise", ex.id); setShowExSelectForTask(null); setExSearchForTask((prev) => ({ ...prev, [task.id]: "" })); }} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "8px 12px", textAlign: "left", fontSize: 12, color: "var(--text)", background: "none", border: "none", borderBottom: "1px solid var(--border)", cursor: "pointer" }}>
+                                                        <span style={{ fontWeight: 500 }}>{ex.name}</span>
+                                                        <span style={{ color: "var(--muted2)", flexShrink: 0 }}>{ex.category}</span>
+                                                      </button>
+                                                    ));
+                                                  })()}
+                                                </div>
+                                                <button onClick={() => { setShowExSelectForTask(null); setExSearchForTask((prev) => ({ ...prev, [task.id]: "" })); }} style={{ fontSize: 12, color: "var(--muted2)", background: "none", border: "none", cursor: "pointer" }}>Hætta við</button>
+                                              </div>
+                                            ) : (
+                                              <div style={{ display: "flex", gap: 8 }}>
+                                                <button onClick={(e) => { e.preventDefault(); setShowExSelectForTask(task.id); }} style={{ flex: 1, background: "var(--surface)", border: "1px dashed var(--border)", borderRadius: 10, padding: "10px 16px", color: "var(--muted2)", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
+                                                  + Æfing
+                                                </button>
+                                                <button onClick={(e) => { e.preventDefault(); addBlock(task.id, task.blocks?.length ?? 0, "text"); }} style={{ flex: 1, background: "var(--surface)", border: "1px dashed var(--border)", borderRadius: 10, padding: "10px 16px", color: "var(--muted2)", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
+                                                  + Texti
+                                                </button>
                                               </div>
                                             )}
                                           </div>
-                                        ))}
+                                        </>)}
                                       </div>
+                                    );
+                                  })}
 
-                                      {/* Add block — search for exercise or add text */}
-                                      <div className="px-4 py-2.5 border-t border-zinc-700/50">
-                                        {showExSelectForTask === task.id ? (
-                                          <div className="space-y-1.5">
-                                            <input
-                                              autoFocus
-                                              type="search"
-                                              value={exSearchForTask[task.id] ?? ""}
-                                              onChange={(e) =>
-                                                setExSearchForTask((prev) => ({
-                                                  ...prev,
-                                                  [task.id]: e.target.value,
-                                                }))
-                                              }
-                                              className="w-full bg-zinc-700 border border-zinc-600 rounded-lg px-3 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-500 focus:outline-none"
-                                              placeholder="Search by name or category…"
-                                            />
-                                            <div className="border border-zinc-600 rounded-lg overflow-hidden">
-                                              {(() => {
-                                                const q = (exSearchForTask[task.id] ?? "").toLowerCase();
-                                                const results = exercises
-                                                  .filter((ex) =>
-                                                    !q ||
-                                                    ex.name.toLowerCase().includes(q) ||
-                                                    ex.category.toLowerCase().includes(q)
-                                                  )
-                                                  .slice(0, 10);
-                                                if (exercises.length === 0) {
-                                                  return (
-                                                    <p className="px-3 py-2 text-xs text-zinc-600">
-                                                      Add exercises in Exercise Bank first.
-                                                    </p>
-                                                  );
-                                                }
-                                                if (results.length === 0) {
-                                                  return (
-                                                    <p className="px-3 py-2 text-xs text-zinc-600">
-                                                      No exercises match.
-                                                    </p>
-                                                  );
-                                                }
-                                                return results.map((ex) => (
-                                                  <button
-                                                    key={ex.id}
-                                                    onClick={(e) => {
-                                                      e.preventDefault();
-                                                      addBlock(
-                                                        task.id,
-                                                        task.blocks?.length ?? 0,
-                                                        "exercise",
-                                                        ex.id
-                                                      );
-                                                      setShowExSelectForTask(null);
-                                                      setExSearchForTask((prev) => ({
-                                                        ...prev,
-                                                        [task.id]: "",
-                                                      }));
-                                                    }}
-                                                    className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left text-xs text-zinc-200 hover:bg-zinc-600 transition-colors border-b border-zinc-700/50 last:border-0"
-                                                  >
-                                                    <span className="font-medium truncate">{ex.name}</span>
-                                                    <span className="text-zinc-500 shrink-0">{ex.category}</span>
-                                                  </button>
-                                                ));
-                                              })()}
-                                            </div>
-                                            <button
-                                              onClick={() => {
-                                                setShowExSelectForTask(null);
-                                                setExSearchForTask((prev) => ({
-                                                  ...prev,
-                                                  [task.id]: "",
-                                                }));
-                                              }}
-                                              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-                                            >
-                                              Cancel
-                                            </button>
-                                          </div>
-                                        ) : (
-                                          <div className="flex items-center gap-3">
-                                            <button
-                                              onClick={(e) => { e.preventDefault(); setShowExSelectForTask(task.id); }}
-                                              className="text-xs text-zinc-500 hover:text-zinc-100 font-medium transition-colors"
-                                            >
-                                              + Exercise
-                                            </button>
-                                            <span className="text-zinc-700 select-none">|</span>
-                                            <button
-                                              onClick={(e) => { e.preventDefault(); addBlock(task.id, task.blocks?.length ?? 0, "text"); }}
-                                              className="text-xs text-zinc-500 hover:text-zinc-100 font-medium transition-colors"
-                                            >
-                                              + Text
-                                            </button>
-                                          </div>
-                                        )}
-                                      </div>
-                                      </>)}
-                                    </div>
-                                  ))}
-
-                                  {/* Add task button */}
-                                  <button
-                                    onClick={() => addTask(day.id, day.tasks?.length ?? 0)}
-                                    className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors font-medium"
-                                  >
-                                    + Add Task
+                                  {/* Add task */}
+                                  <button onClick={() => addTask(day.id, day.tasks?.length ?? 0)} style={dashedAddBtn}>
+                                    + Verkefni
                                   </button>
                                 </div>
-                                )}
-                              </div>
-                            );
-                          })}
+                              )}
+                            </div>
+                          );
+                        })}
 
-                          {/* Add day */}
-                          <div className="px-6 py-3">
-                            <button
-                              onClick={() =>
-                                addDay(week.id, week.days?.length ?? 0)
-                              }
-                              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors font-medium"
-                            >
-                              + Add Day
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                        {/* Add day */}
+                        <button onClick={() => addDay(week.id, week.days?.length ?? 0)} style={{ ...dashedAddBtn, marginTop: 12 }}>
+                          + Dagur
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
 
-                {/* Add week */}
-                <button
-                  onClick={addWeek}
-                  className={`${btnGhost} w-full justify-center`}
-                >
-                  + Add Week
-                </button>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+              {/* Add week */}
+              <button onClick={addWeek} style={dashedAddBtn}>
+                + Vika
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </>
   );
 }
