@@ -5,6 +5,7 @@ import TopBar from "@/components/TopBar";
 import BottomNav from "@/components/BottomNav";
 import Sidebar from "@/components/Sidebar";
 import ContentWrapper from "@/components/ContentWrapper";
+import ThemeProvider from "@/components/ThemeProvider";
 import { createClient } from "@/lib/supabase/server";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -45,6 +46,13 @@ export default async function RootLayout({
   return (
     <html lang="is">
       <body className={`${inter.className} ${bebasNeue.variable} min-h-screen`}>
+        {/* Anti-flash: apply theme before React hydrates */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem('cp-theme');var a=window.location.pathname.startsWith('/admin');if(t==='light'&&!a)document.documentElement.classList.add('light');}catch(e){}`,
+          }}
+        />
+        <ThemeProvider>
         {/* Admin sidebar — only renders itself on /admin routes */}
         <Sidebar
           userEmail={user?.email ?? null}
@@ -65,6 +73,7 @@ export default async function RootLayout({
 
         {/* Bottom nav — all screen sizes, hidden on admin */}
         <BottomNav />
+        </ThemeProvider>
       </body>
     </html>
   );

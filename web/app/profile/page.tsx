@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import ProfileSignOut from "./ProfileSignOut";
+import ProfileThemeToggle from "./ProfileThemeToggle";
 
 export const dynamic = "force-dynamic";
 
@@ -458,6 +459,7 @@ export default async function ProfilePage() {
           </p>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <ProfileThemeToggle />
             {menuItems.map((item) => (
               <Link
                 key={item.label}
