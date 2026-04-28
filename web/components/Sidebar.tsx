@@ -185,7 +185,7 @@ export default function Sidebar({ userEmail, userFullName: userFullNameProp, isA
                       ? "2px solid var(--accent)"
                       : "2px solid transparent",
                     background: active
-                      ? "rgba(59,107,255,0.12)"
+                      ? "rgba(240,192,112,0.08)"
                       : "transparent",
                     transition: "background 0.12s",
                   }}

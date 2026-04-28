@@ -337,8 +337,8 @@ export default async function DashboardPage() {
                 width: 44,
                 height: 44,
                 borderRadius: "50%",
-                background: "rgba(255,140,66,0.15)",
-                border: "1px solid rgba(255,140,66,0.3)",
+                background: "rgba(240,192,112,0.1)",
+                border: "1px solid rgba(240,192,112,0.2)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -353,7 +353,7 @@ export default async function DashboardPage() {
                 style={{
                   fontFamily: "var(--font-bebas)",
                   fontSize: 28,
-                  color: "var(--text)",
+                  color: "var(--accent)",
                   letterSpacing: "0.04em",
                   lineHeight: 1,
                 }}
@@ -391,7 +391,7 @@ export default async function DashboardPage() {
                     border: dot.isFuture
                       ? "1px solid var(--border)"
                       : dot.isToday
-                      ? "2px solid rgba(59,107,255,0.35)"
+                      ? "2px solid rgba(240,192,112,0.3)"
                       : "none",
                     boxSizing: "border-box",
                   }}
@@ -433,7 +433,7 @@ export default async function DashboardPage() {
                   left: 0,
                   right: 0,
                   height: 2,
-                  background: "linear-gradient(90deg, #3b6bff, #7c3aed, #2dd4a0)",
+                  background: "linear-gradient(90deg, var(--accent), var(--warm), transparent)",
                   zIndex: 2,
                 }}
               />
@@ -508,7 +508,7 @@ export default async function DashboardPage() {
                       viewBox="0 0 38 38"
                       style={{ flexShrink: 0, transform: "rotate(-90deg)" }}
                     >
-                      <circle cx="19" cy="19" r="15" fill="none" stroke="rgba(59,107,255,0.15)" strokeWidth="3" />
+                      <circle cx="19" cy="19" r="15" fill="none" stroke="rgba(240,192,112,0.15)" strokeWidth="3" />
                       <circle
                         cx="19" cy="19" r="15" fill="none"
                         stroke="var(--accent)" strokeWidth="3"
@@ -523,7 +523,7 @@ export default async function DashboardPage() {
                           style={{
                             height: "100%",
                             width: `${todayProgressPct}%`,
-                            background: "linear-gradient(90deg, var(--accent), var(--success))",
+                            background: "linear-gradient(90deg, var(--accent), var(--warm))",
                             borderRadius: 999,
                             transition: "width 0.4s ease",
                           }}
@@ -544,7 +544,7 @@ export default async function DashboardPage() {
                     alignItems: "center",
                     justifyContent: "space-between",
                     background: "var(--accent)",
-                    color: "#fff",
+                    color: "#0A0F18",
                     fontSize: 14,
                     fontWeight: 700,
                     padding: "13px 18px",
@@ -619,7 +619,7 @@ export default async function DashboardPage() {
                     style={{
                       height: "100%",
                       width: `${weekProgressPct}%`,
-                      background: "linear-gradient(90deg, var(--accent), var(--success))",
+                      background: "linear-gradient(90deg, var(--accent), var(--warm))",
                       borderRadius: 999,
                       transition: "width 0.4s ease",
                     }}
@@ -684,7 +684,7 @@ export default async function DashboardPage() {
                             style={{
                               height: "100%",
                               width: `${course.pct}%`,
-                              background: "linear-gradient(90deg, var(--accent), var(--success))",
+                              background: "linear-gradient(90deg, var(--accent), var(--warm))",
                               borderRadius: 999,
                             }}
                           />
@@ -724,7 +724,7 @@ export default async function DashboardPage() {
                 style={{
                   display: "inline-block",
                   background: "var(--accent)",
-                  color: "#fff",
+                  color: "#0A0F18",
                   fontSize: 13,
                   fontWeight: 700,
                   padding: "11px 24px",

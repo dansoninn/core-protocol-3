@@ -50,6 +50,7 @@ export default function BottomNav() {
                 gap: 4,
                 textDecoration: "none",
                 color: active ? "var(--accent)" : "var(--muted)",
+                background: active ? "rgba(240,192,112,0.07)" : "transparent",
                 paddingTop: 8,
                 paddingBottom: 8,
                 position: "relative",

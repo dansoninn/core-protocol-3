@@ -10,13 +10,13 @@ import type { DbTask, DbExercise } from "@/types";
 const DAY_ABBREVS = ["MÁN", "ÞRI", "MIÐ", "FIM", "FÖS", "LAU", "SUN"];
 
 const C = {
-  page: "#0a0c0f",
-  card: "#111318",
-  row: "#161a21",
-  body: "#f0f2f5",
-  muted: "#8892a0",
-  blue: "#3b6bff",
-  teal: "#2dd4a0",
+  page: "#0E1420",
+  card: "#141E2C",
+  row: "#1A2838",
+  body: "#E8F2F8",
+  muted: "#5A7A90",
+  blue: "#F0C070",
+  teal: "#708893",
   border: "rgba(255,255,255,0.06)",
 };
 
@@ -458,15 +458,15 @@ export default function DayClient({
 
                 if (isCurrent) {
                   pillStyle = {
-                    background: "rgba(59,107,255,0.10)",
-                    border: "1px solid rgba(59,107,255,0.5)",
+                    background: "rgba(240,192,112,0.08)",
+                    border: "1px solid rgba(240,192,112,0.3)",
                   };
                   abbrevColor = C.blue;
                   numColor = C.blue;
                 } else if (isPast) {
                   pillStyle = {
-                    background: "rgba(45,212,160,0.07)",
-                    border: "1px solid rgba(45,212,160,0.28)",
+                    background: "rgba(112,136,147,0.07)",
+                    border: "1px solid rgba(112,136,147,0.25)",
                   };
                   abbrevColor = C.teal;
                   numColor = C.teal;
@@ -550,7 +550,7 @@ export default function DayClient({
                     cy="21"
                     r="17"
                     fill="none"
-                    stroke="rgba(59,107,255,0.15)"
+                    stroke="rgba(240,192,112,0.15)"
                     strokeWidth="3"
                   />
                   <circle
@@ -580,7 +580,7 @@ export default function DayClient({
                       style={{
                         height: "100%",
                         width: `${progressPct}%`,
-                        background: `linear-gradient(90deg, ${C.blue}, ${C.teal})`,
+                        background: "linear-gradient(90deg, var(--accent), var(--warm))",
                         borderRadius: 999,
                         transition: "width 0.4s ease",
                       }}
@@ -916,9 +916,9 @@ export default function DayClient({
                                           width: 32,
                                           height: 32,
                                           borderRadius: 8,
-                                          background: "rgba(59,107,255,0.12)",
+                                          background: "rgba(240,192,112,0.08)",
                                           border:
-                                            "1px solid rgba(59,107,255,0.25)",
+                                            "1px solid rgba(240,192,112,0.2)",
                                           display: "flex",
                                           alignItems: "center",
                                           justifyContent: "center",
@@ -985,9 +985,9 @@ export default function DayClient({
                                       padding: "9px 14px",
                                       borderRadius: 8,
                                       background: done
-                                        ? "rgba(45,212,160,0.10)"
+                                        ? "rgba(240,192,112,0.08)"
                                         : "rgba(255,255,255,0.04)",
-                                      border: `1px solid ${done ? "rgba(45,212,160,0.25)" : "rgba(255,255,255,0.08)"}`,
+                                      border: `1px solid ${done ? "rgba(240,192,112,0.2)" : "rgba(255,255,255,0.08)"}`,
                                       cursor: isSaving ? "default" : "pointer",
                                       transition: "background 0.15s, border 0.15s",
                                     }}
@@ -999,8 +999,8 @@ export default function DayClient({
                                         width: 18,
                                         height: 18,
                                         borderRadius: "50%",
-                                        background: done ? C.teal : "transparent",
-                                        border: `2px solid ${done ? C.teal : "rgba(255,255,255,0.2)"}`,
+                                        background: done ? "var(--accent)" : "transparent",
+                                        border: `2px solid ${done ? "var(--accent)" : "rgba(255,255,255,0.2)"}`,
                                         display: "flex",
                                         alignItems: "center",
                                         justifyContent: "center",
@@ -1028,7 +1028,7 @@ export default function DayClient({
                                       style={{
                                         fontSize: 13,
                                         fontWeight: 600,
-                                        color: done ? C.teal : C.muted,
+                                        color: done ? "var(--accent)" : "var(--muted)",
                                       }}
                                     >
                                       {done ? "Lokið" : "Merkja lokið"}
@@ -1054,7 +1054,7 @@ export default function DayClient({
               style={{
                 marginTop: 16,
                 background: "var(--surface)",
-                border: "1px solid rgba(45,212,160,0.25)",
+                border: "1px solid rgba(240,192,112,0.2)",
                 borderRadius: 16,
                 padding: 20,
               }}
@@ -1072,15 +1072,15 @@ export default function DayClient({
                     width: 40,
                     height: 40,
                     borderRadius: "50%",
-                    background: "rgba(45,212,160,0.15)",
-                    border: "1px solid rgba(45,212,160,0.3)",
+                    background: "rgba(240,192,112,0.1)",
+                    border: "1px solid rgba(240,192,112,0.2)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     flexShrink: 0,
                   }}
                 >
-                  <svg width="18" height="18" fill={C.teal} viewBox="0 0 20 20">
+                  <svg width="18" height="18" fill="var(--accent)" viewBox="0 0 20 20">
                     <path
                       fillRule="evenodd"
                       d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
@@ -1093,7 +1093,7 @@ export default function DayClient({
                     style={{
                       fontFamily: "var(--font-bebas)",
                       fontSize: 22,
-                      color: "var(--success)",
+                      color: "var(--accent)",
                       letterSpacing: "0.05em",
                       lineHeight: 1,
                     }}
@@ -1114,7 +1114,7 @@ export default function DayClient({
                     alignItems: "center",
                     justifyContent: "space-between",
                     background: "var(--accent)",
-                    color: "#ffffff",
+                    color: "#0A0F18",
                     fontSize: 13,
                     fontWeight: 700,
                     padding: "12px 16px",
@@ -1147,7 +1147,7 @@ export default function DayClient({
                     alignItems: "center",
                     justifyContent: "space-between",
                     background: "var(--accent)",
-                    color: "#ffffff",
+                    color: "#0A0F18",
                     fontSize: 13,
                     fontWeight: 700,
                     padding: "12px 16px",

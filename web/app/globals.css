@@ -3,19 +3,20 @@
 @tailwind utilities;
 
 :root {
-  --bg: #0a0c0f;
-  --surface: #111318;
-  --surface2: #161a21;
-  --surface3: #1c2029;
+  --bg: #0E1420;
+  --surface: #141E2C;
+  --surface2: #1A2838;
+  --surface3: #1D2B38;
   --border: rgba(255, 255, 255, 0.06);
-  --accent: #3b6bff;
-  --accent-dim: rgba(59, 107, 255, 0.12);
-  --success: #2dd4a0;
-  --success-dim: rgba(45, 212, 160, 0.1);
-  --text: #f0f2f5;
-  --muted: #5a6070;
-  --muted2: #8892a0;
-  --warm: #ff8c42;
+  --accent: #F0C070;
+  --accent-dim: rgba(240, 192, 112, 0.08);
+  --accent-glow: rgba(240, 192, 112, 0.2);
+  --success: #708893;
+  --success-dim: rgba(112, 136, 147, 0.1);
+  --text: #E8F2F8;
+  --muted: #4A6070;
+  --muted2: #5A7A90;
+  --warm: #B7C4CC;
 }
 
 .light {
