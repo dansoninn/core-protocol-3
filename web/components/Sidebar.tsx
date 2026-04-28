@@ -3,7 +3,17 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ShieldCheck, LogOut } from "lucide-react";
+import {
+  LayoutDashboard,
+  Dumbbell,
+  BookOpen,
+  Hammer,
+  Video,
+  Users,
+  Settings,
+  BarChart3,
+  LogOut,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 interface Props {
@@ -12,12 +22,57 @@ interface Props {
   isAdmin?: boolean;
 }
 
+type NavItem = {
+  id: string;
+  label: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  icon: React.ComponentType<any>;
+  href: string;
+  tab: string | null;
+};
+
+type NavSection = {
+  label: string;
+  items: NavItem[];
+};
+
+const navSections: NavSection[] = [
+  {
+    label: "YFIRLIT",
+    items: [
+      { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, href: "/admin", tab: null },
+    ],
+  },
+  {
+    label: "EFNI",
+    items: [
+      { id: "exercises", label: "Æfingabanki", icon: Dumbbell, href: "/admin?tab=exercises", tab: "exercises" },
+      { id: "courses", label: "Námskeið", icon: BookOpen, href: "/admin?tab=courses", tab: "courses" },
+      { id: "builder", label: "Course Builder", icon: Hammer, href: "/admin?tab=builder", tab: "builder" },
+      { id: "videos", label: "Myndbönd", icon: Video, href: "/admin?tab=videos", tab: "videos" },
+    ],
+  },
+  {
+    label: "NOTENDUR",
+    items: [
+      { id: "users", label: "Notendur", icon: Users, href: "/admin?tab=users", tab: "users" },
+    ],
+  },
+  {
+    label: "KERFI",
+    items: [
+      { id: "settings", label: "Stillingar", icon: Settings, href: "/admin?tab=settings", tab: "settings" },
+      { id: "analytics", label: "Greining", icon: BarChart3, href: "/admin?tab=analytics", tab: "analytics" },
+    ],
+  },
+];
+
 export default function Sidebar({ userEmail, userFullName: userFullNameProp, isAdmin }: Props) {
   const pathname = usePathname();
   const router = useRouter();
 
-  // full_name from profiles — start with server-side prop, refresh client-side
   const [fullName, setFullName] = useState<string | null>(userFullNameProp ?? null);
+  const [activeTab, setActiveTab] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userEmail) return;
@@ -34,6 +89,12 @@ export default function Sidebar({ userEmail, userFullName: userFullNameProp, isA
     })();
   }, [userEmail]);
 
+  // Detect active tab from URL (client-side only to avoid SSR issues)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setActiveTab(params.get("tab"));
+  }, [pathname]);
+
   // Only render on admin routes
   if (!pathname.startsWith("/admin")) return null;
 
@@ -44,9 +105,6 @@ export default function Sidebar({ userEmail, userFullName: userFullNameProp, isA
     router.refresh();
   };
 
-  const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + "/");
-
   const displayName = fullName || userEmail || "";
   const initials =
     displayName
@@ -56,62 +114,191 @@ export default function Sidebar({ userEmail, userFullName: userFullNameProp, isA
       .map((w) => w[0].toUpperCase())
       .join("") || "?";
 
+  const isActive = (item: NavItem) => {
+    if (item.tab === null) return activeTab === null;
+    return activeTab === item.tab;
+  };
+
   return (
     <aside
-      className="flex flex-col fixed left-0 top-0 h-screen w-60 z-40"
-      style={{ backgroundColor: "#0d1117", borderRight: "1px solid rgba(255,255,255,0.06)" }}
+      className="flex flex-col fixed left-0 top-0 h-screen z-40"
+      style={{
+        width: 240,
+        backgroundColor: "#0d0f12",
+        borderRight: "1px solid rgba(255,255,255,0.06)",
+      }}
     >
       {/* Logo */}
-      <div className="px-5 py-6 shrink-0">
-        <p className="text-white font-semibold text-base tracking-tight">
+      <div
+        style={{
+          padding: "24px 20px 16px",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          flexShrink: 0,
+        }}
+      >
+        <p
+          style={{
+            fontFamily: "var(--font-bebas)",
+            fontSize: 20,
+            color: "#fff",
+            letterSpacing: "0.04em",
+            lineHeight: 1,
+          }}
+        >
           Core Protocol
         </p>
-        <p className="text-zinc-500 text-xs mt-0.5">Admin Panel</p>
+        <p style={{ fontSize: 11, color: "var(--muted2)", marginTop: 3 }}>Admin Panel</p>
       </div>
 
-      {/* Admin nav */}
-      <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
-        {isAdmin && (
-          <Link
-            href="/admin"
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm ${
-              isActive("/admin")
-                ? "bg-white/10 text-white font-medium"
-                : "text-zinc-400 hover:text-zinc-200 hover:bg-white/5 font-normal"
-            }`}
-          >
-            <ShieldCheck
-              className={`w-[18px] h-[18px] shrink-0 transition-opacity ${
-                isActive("/admin") ? "opacity-100" : "opacity-60"
-              }`}
-              strokeWidth={isActive("/admin") ? 2 : 1.5}
-            />
-            Admin
-          </Link>
-        )}
+      {/* Nav sections */}
+      <nav style={{ flex: 1, overflowY: "auto", padding: "4px 12px 8px" }}>
+        {(isAdmin ? navSections : []).map((section) => (
+          <div key={section.label}>
+            <p
+              style={{
+                fontSize: 9,
+                fontWeight: 700,
+                color: "var(--muted2)",
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                padding: "16px 8px 6px",
+              }}
+            >
+              {section.label}
+            </p>
+            {section.items.map((item) => {
+              const active = isActive(item);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "8px 10px",
+                    borderRadius: 10,
+                    marginBottom: 2,
+                    textDecoration: "none",
+                    borderLeft: active
+                      ? "2px solid var(--accent)"
+                      : "2px solid transparent",
+                    background: active
+                      ? "rgba(59,107,255,0.12)"
+                      : "transparent",
+                    transition: "background 0.12s",
+                  }}
+                  className={!active ? "hover:bg-white/[0.04]" : ""}
+                >
+                  <Icon
+                    size={16}
+                    strokeWidth={active ? 2 : 1.5}
+                    style={{
+                      color: active ? "var(--accent)" : "var(--muted2)",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: active ? "var(--accent)" : "var(--muted2)",
+                    }}
+                  >
+                    {item.label}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       {/* User footer */}
       {userEmail && (
-        <div className="px-3 py-4 border-t border-white/10 shrink-0">
-          <div className="flex items-center gap-3 px-3 mb-3">
-            <div className="w-8 h-8 rounded-full bg-white/10 text-white flex items-center justify-center text-xs font-medium shrink-0">
+        <div
+          style={{
+            padding: 12,
+            borderTop: "1px solid rgba(255,255,255,0.06)",
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "8px 10px",
+              marginBottom: 4,
+            }}
+          >
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: "50%",
+                background: "rgba(255,255,255,0.1)",
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 12,
+                fontWeight: 600,
+                flexShrink: 0,
+              }}
+            >
               {initials}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-white text-xs font-medium truncate">
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p
+                style={{
+                  fontSize: 12,
+                  color: "#fff",
+                  fontWeight: 500,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {fullName || userEmail}
               </p>
               {fullName && (
-                <p className="text-zinc-500 text-[10px] truncate">{userEmail}</p>
+                <p
+                  style={{
+                    fontSize: 10,
+                    color: "var(--muted2)",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {userEmail}
+                </p>
               )}
             </div>
           </div>
           <button
             onClick={handleSignOut}
-            className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-white/5 transition-all text-sm font-normal"
+            className="hover:bg-white/[0.04]"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              width: "100%",
+              padding: "8px 10px",
+              borderRadius: 10,
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--muted2)",
+              fontSize: 13,
+              fontWeight: 500,
+              textAlign: "left",
+              transition: "background 0.12s",
+            }}
           >
-            <LogOut className="w-[18px] h-[18px] opacity-60 shrink-0" strokeWidth={1.5} />
+            <LogOut size={16} strokeWidth={1.5} style={{ opacity: 0.6, flexShrink: 0 }} />
             Útskráning
           </button>
         </div>

@@ -207,53 +207,53 @@ function ConfirmDelete({
 
 // ─── Main component ────────────────────────────────────────────────────────────
 
-type Tab = "exercises" | "courses" | "builder" | "users";
+type Tab = "exercises" | "courses" | "builder" | "users" | "videos" | "settings" | "analytics";
 
-export default function AdminClient() {
-  const [tab, setTab] = useState<Tab>("exercises");
-
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "exercises", label: "Exercise Bank" },
-    { id: "courses", label: "Courses" },
-    { id: "builder", label: "Course Builder" },
-    { id: "users", label: "Users" },
-  ];
+export default function AdminClient({ initialTab }: { initialTab?: string }) {
+  const tab = (initialTab ?? "exercises") as Tab;
 
   return (
-    <div className="min-h-screen text-zinc-100" style={{ backgroundColor: "#0F1923" }}>
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-extrabold text-zinc-100 tracking-tight">
-            Admin Panel
-          </h1>
-          <p className="text-sm mt-0.5" style={{ color: ACCENT }}>Core Protocol</p>
-        </div>
+    <div className="text-zinc-100">
+      {tab === "exercises" && <ExercisesTab />}
+      {tab === "courses" && <CoursesTab />}
+      {tab === "builder" && <CourseBuilderTab />}
+      {tab === "users" && <UsersTab />}
+      {(tab === "videos" || tab === "settings" || tab === "analytics") && (
+        <PlaceholderTab
+          title={
+            tab === "videos" ? "Myndbönd" : tab === "settings" ? "Stillingar" : "Greining"
+          }
+        />
+      )}
+    </div>
+  );
+}
 
-        {/* Tab bar */}
-        <div className="flex gap-1 mb-8 bg-zinc-900 p-1 rounded-xl border border-zinc-800 w-fit">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className="px-5 py-2 rounded-lg text-sm font-medium transition-colors"
-              style={
-                tab === t.id
-                  ? { backgroundColor: ACCENT, color: "#0F1923" }
-                  : { color: "#71717a" }
-              }
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Tab content */}
-        {tab === "exercises" && <ExercisesTab />}
-        {tab === "courses" && <CoursesTab />}
-        {tab === "builder" && <CourseBuilderTab />}
-        {tab === "users" && <UsersTab />}
-      </div>
+function PlaceholderTab({ title }: { title: string }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingTop: 80,
+        color: "var(--muted2)",
+        textAlign: "center",
+      }}
+    >
+      <p
+        style={{
+          fontFamily: "var(--font-bebas)",
+          fontSize: 28,
+          letterSpacing: "0.04em",
+          color: "var(--text)",
+          marginBottom: 8,
+        }}
+      >
+        {title}
+      </p>
+      <p style={{ fontSize: 14 }}>Koma bráðum</p>
     </div>
   );
 }
