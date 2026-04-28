@@ -64,20 +64,35 @@ exercise search with pills, duplicate day, move up/down
 - `/profile` — enrolled courses + streak
 - `/settings` — name + password
 
-## Features Done
+## Current State (CP.v02 — April 2026)
+
+### Completed
 - Auth (Supabase) with email/password
 - Admin panel with full course builder
-- Day view: collapsible tasks, progress rings, video popup
 - Progress tracking at block level (persists to DB)
-- Hero image on day view
-- Prev/next day navigation (cross-week)
-- Exercise search with pills in admin
 - Image upload to Supabase Storage
 - Move up/down on weeks and days
+- Dark theme throughout with CSS variables in globals.css
+- Bottom navigation (BottomNav.tsx) on all user pages, all screen sizes
+- TopBar.tsx for user pages
+- Admin sidebar kept only on /admin routes
+- Dashboard redesign: streak, today card, tomorrow preview, week progress
+- Course overview redesign: hero, locked/unlocked days, sequential unlock
+- Day view redesign: hero, week strip, task accordion, video modal
+- Exercise library: grid with Mux thumbnails, search, filters
+- Profile page: avatar, stats pills, course list, settings menu
 
-## Pending / Next
+### Architecture
+- User pages: max-width 680px centered, bottom nav, no sidebar
+- Admin pages: full width, sidebar, no bottom nav
+- CSS variables: `--bg`, `--surface`, `--surface2`, `--surface3`, `--border`,
+  `--accent`, `--accent-dim`, `--success`, `--success-dim`, `--text`, `--muted`, `--muted2`
+- Fonts: Bebas Neue (`var(--font-bebas)`) for headings, DM Sans for body
+
+### Next
+- Admin panel redesign: dashboard with live stats, quick actions,
+  course builder improvements, user management
 - Teya payment integration (one-time + subscription)
 - Messaging per course (optional, checkbox in course creation)
 - Push notifications
-- Exercise bank filters (upper/lower body etc.)
 - Automated QA testing (Playwright + Claude API)
