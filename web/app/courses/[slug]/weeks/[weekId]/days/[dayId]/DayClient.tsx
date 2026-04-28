@@ -614,7 +614,13 @@ export default function DayClient({
             </p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {tasks.map((task) => {
+              {(() => {
+                const firstIncompleteIdx = tasks.findIndex((t) => {
+                  const exBlocks = t.blocks.filter((b) => b.type === "exercise");
+                  const doneCount = exBlocks.filter((b) => completedIds.has(b.id)).length;
+                  return !(exBlocks.length > 0 && doneCount === exBlocks.length);
+                });
+                return tasks.map((task, taskIndex) => {
                 const isExpanded = expandedTaskIds.has(task.id);
                 const taskExBlocks = task.blocks.filter(
                   (b) => b.type === "exercise"
@@ -634,7 +640,11 @@ export default function DayClient({
                       border: `1px solid ${C.border}`,
                       borderRadius: 14,
                       overflow: "hidden",
-                      borderLeft: `2px solid ${task.color}`,
+                      borderLeft: taskComplete
+                        ? "3px solid var(--success)"
+                        : taskIndex === firstIncompleteIdx
+                        ? "3px solid var(--accent)"
+                        : "3px solid var(--border)",
                     }}
                   >
                     {/* Accordion header */}
@@ -1033,7 +1043,8 @@ export default function DayClient({
                     )}
                   </div>
                 );
-              })}
+              });
+              })()}
             </div>
           )}
 
@@ -1042,8 +1053,8 @@ export default function DayClient({
             <div
               style={{
                 marginTop: 16,
-                background: "rgba(45,212,160,0.08)",
-                border: "1px solid rgba(45,212,160,0.2)",
+                background: "var(--surface)",
+                border: "1px solid rgba(45,212,160,0.25)",
                 borderRadius: 16,
                 padding: 20,
               }}
@@ -1082,7 +1093,7 @@ export default function DayClient({
                     style={{
                       fontFamily: "var(--font-bebas)",
                       fontSize: 22,
-                      color: C.teal,
+                      color: "var(--success)",
                       letterSpacing: "0.05em",
                       lineHeight: 1,
                     }}
@@ -1102,8 +1113,8 @@ export default function DayClient({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    background: C.teal,
-                    color: "#0a0c0f",
+                    background: "var(--accent)",
+                    color: "#ffffff",
                     fontSize: 13,
                     fontWeight: 700,
                     padding: "12px 16px",
@@ -1135,8 +1146,8 @@ export default function DayClient({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    background: C.teal,
-                    color: "#0a0c0f",
+                    background: "var(--accent)",
+                    color: "#ffffff",
                     fontSize: 13,
                     fontWeight: 700,
                     padding: "12px 16px",
@@ -1185,9 +1196,9 @@ export default function DayClient({
                   gap: 6,
                   fontSize: 13,
                   fontWeight: 500,
-                  color: C.muted,
-                  background: C.card,
-                  border: `1px solid ${C.border}`,
+                  color: "var(--muted)",
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
                   padding: "10px 14px",
                   borderRadius: 10,
                   textDecoration: "none",
@@ -1219,9 +1230,9 @@ export default function DayClient({
                   gap: 6,
                   fontSize: 13,
                   fontWeight: 500,
-                  color: C.muted,
-                  background: C.card,
-                  border: `1px solid ${C.border}`,
+                  color: "var(--muted)",
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
                   padding: "10px 14px",
                   borderRadius: 10,
                   textDecoration: "none",
@@ -1255,9 +1266,9 @@ export default function DayClient({
                   gap: 6,
                   fontSize: 13,
                   fontWeight: 500,
-                  color: C.muted,
-                  background: C.card,
-                  border: `1px solid ${C.border}`,
+                  color: "var(--muted)",
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
                   padding: "10px 14px",
                   borderRadius: 10,
                   textDecoration: "none",
