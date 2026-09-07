@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import MuxPlayer from "@mux/mux-player-react";
+import { formatPrice } from "@/lib/formatPrice";
 
 // ─── DB types ─────────────────────────────────────────────────────────────────
 
@@ -1042,7 +1043,7 @@ function CoursesTab() {
                       {c.category}
                     </td>
                     <td className="px-6 py-3 text-zinc-400 hidden md:table-cell">
-                      {c.price.toLocaleString()} kr.
+                      {formatPrice(c.price)} kr.
                     </td>
                     <td className="px-6 py-3 text-right">
                       <div className="flex items-center justify-end gap-4">

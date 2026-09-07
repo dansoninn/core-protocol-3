@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { DbCourse } from "@/types";
+import { formatPrice } from "@/lib/formatPrice";
 
 interface Props {
   course: DbCourse;
@@ -85,7 +86,7 @@ export default function CourseCard({ course }: Props) {
           </p>
         )}
         <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text)" }}>
-          {course.price.toLocaleString("is-IS")} kr.
+          {formatPrice(course.price)} kr.
         </p>
       </div>
     </Link>

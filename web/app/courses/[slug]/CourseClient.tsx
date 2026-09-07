@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { DbCourse, DbWeek } from "@/types";
+import { formatPrice } from "@/lib/formatPrice";
 
 interface DayProgressData {
   blocksComplete: number;
@@ -294,7 +295,7 @@ export default function CourseClient({
                 </p>
               )}
               <p style={{ fontSize: 22, fontWeight: 700, color: "var(--text)" }}>
-                {course.price.toLocaleString("is-IS")} kr.
+                {formatPrice(course.price)} kr.
               </p>
             </div>
             <button

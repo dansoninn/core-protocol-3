@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { formatPrice } from "@/lib/formatPrice";
 
 interface DbCourse {
   id: string;
@@ -155,7 +156,7 @@ export default async function CoursesPage() {
                       color: "var(--text)",
                     }}
                   >
-                    {course.price.toLocaleString("is-IS")} kr.
+                    {formatPrice(course.price)} kr.
                   </p>
                 </div>
               </Link>
