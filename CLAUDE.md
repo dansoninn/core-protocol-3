@@ -5,6 +5,9 @@ Next.js 14 e-learning/training platform for fitness and training programs.
 Deployed at core-protocol-3.vercel.app via Vercel (GitHub → auto deploy).
 All app code lives in the `/web` directory.
 
+Current build state and open items live in STATUS.md — read it before starting
+work, update it before finishing.
+
 ## Tech Stack
 - **Framework:** Next.js 14 App Router
 - **Auth + Database:** Supabase (@supabase/ssr)
@@ -44,7 +47,12 @@ Progress tracked at **block level** (exercise blocks only).
 - Client components only for interactivity
 - No router.refresh() inside inline edit operations — local state only
 - e.preventDefault() on all block/task buttons to prevent scroll jump
-- Use npx tsc --noEmit to verify TypeScript (npm run build times out)
+- Run `npm run build` before every commit — it completes in about 40 seconds and
+  must pass. It catches ESLint errors that `npx tsc --noEmit` does not, and those
+  are exactly what break Vercel deploys. `tsc --noEmit` is a faster inner-loop
+  check, not a substitute.
+- Use the `--accent-line` CSS variable for accent borders — never hardcode rgba
+  values, they break in light mode
 
 ## Storage Buckets (Supabase)
 - `course-images` — public, course cover images
@@ -64,35 +72,10 @@ exercise search with pills, duplicate day, move up/down
 - `/profile` — enrolled courses + streak
 - `/settings` — name + password
 
-## Current State (CP.v02 — April 2026)
-
-### Completed
-- Auth (Supabase) with email/password
-- Admin panel with full course builder
-- Progress tracking at block level (persists to DB)
-- Image upload to Supabase Storage
-- Move up/down on weeks and days
-- Dark theme throughout with CSS variables in globals.css
-- Bottom navigation (BottomNav.tsx) on all user pages, all screen sizes
-- TopBar.tsx for user pages
-- Admin sidebar kept only on /admin routes
-- Dashboard redesign: streak, today card, tomorrow preview, week progress
-- Course overview redesign: hero, locked/unlocked days, sequential unlock
-- Day view redesign: hero, week strip, task accordion, video modal
-- Exercise library: grid with Mux thumbnails, search, filters
-- Profile page: avatar, stats pills, course list, settings menu
-
-### Architecture
+## Architecture
 - User pages: max-width 680px centered, bottom nav, no sidebar
 - Admin pages: full width, sidebar, no bottom nav
 - CSS variables: `--bg`, `--surface`, `--surface2`, `--surface3`, `--border`,
-  `--accent`, `--accent-dim`, `--success`, `--success-dim`, `--text`, `--muted`, `--muted2`
+  `--accent`, `--accent-dim`, `--accent-line`, `--success`, `--success-dim`,
+  `--text`, `--muted`, `--muted2`
 - Fonts: Bebas Neue (`var(--font-bebas)`) for headings, DM Sans for body
-
-### Next
-- Admin panel redesign: dashboard with live stats, quick actions,
-  course builder improvements, user management
-- Teya payment integration (one-time + subscription)
-- Messaging per course (optional, checkbox in course creation)
-- Push notifications
-- Automated QA testing (Playwright + Claude API)
