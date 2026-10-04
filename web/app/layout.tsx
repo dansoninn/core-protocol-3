@@ -6,6 +6,7 @@ import BottomNav from "@/components/BottomNav";
 import Sidebar from "@/components/Sidebar";
 import ContentWrapper from "@/components/ContentWrapper";
 import ThemeProvider from "@/components/ThemeProvider";
+import ViewSwitcher from "@/components/ViewSwitcher";
 import { createClient } from "@/lib/supabase/server";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -60,10 +61,14 @@ export default async function RootLayout({
           isAdmin={isAdmin}
         />
 
+        {/* Admin view-switcher banner — only for admins, only on user pages */}
+        <ViewSwitcher isAdmin={isAdmin} variant="banner" />
+
         {/* Top bar — user-facing pages (hides itself on admin/auth/day-view) */}
         <TopBar
           userEmail={user?.email ?? null}
           userFullName={fullName}
+          isAdmin={isAdmin}
         />
 
         {/* Content — offset for sidebar on admin desktop */}

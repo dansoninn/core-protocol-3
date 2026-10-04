@@ -11,6 +11,7 @@
   --accent: #F0C070;
   --accent-dim: rgba(240, 192, 112, 0.08);
   --accent-glow: rgba(240, 192, 112, 0.2);
+  --accent-line: rgba(240, 192, 112, 0.35);
   --success: #708893;
   --success-dim: rgba(112, 136, 147, 0.1);
   --text: #E8F2F8;
@@ -27,6 +28,7 @@
   --border: rgba(0, 0, 0, 0.08);
   --accent: #2855e0;
   --accent-dim: rgba(40, 85, 224, 0.10);
+  --accent-line: rgba(40, 85, 224, 0.35);
   --success: #1a9e75;
   --success-dim: rgba(26, 158, 117, 0.10);
   --text: #0f1117;

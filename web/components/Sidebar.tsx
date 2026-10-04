@@ -15,6 +15,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import ViewSwitcher from "@/components/ViewSwitcher";
 
 interface Props {
   userEmail?: string | null;
@@ -278,6 +279,8 @@ export default function Sidebar({ userEmail, userFullName: userFullNameProp, isA
               )}
             </div>
           </div>
+          <ViewSwitcher isAdmin={!!isAdmin} variant="sidebar" />
+
           <button
             onClick={handleSignOut}
             className="hover:bg-white/[0.04]"

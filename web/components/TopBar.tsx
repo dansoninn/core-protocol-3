@@ -3,15 +3,17 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bell } from "lucide-react";
+import { showsAdminBanner, VIEW_SWITCHER_HEIGHT } from "@/components/ViewSwitcher";
 
 interface Props {
   userEmail: string | null;
   userFullName: string | null;
+  isAdmin?: boolean;
 }
 
 const DAY_VIEW_RE = /^\/courses\/[^/]+\/weeks\/[^/]+\/days\/[^/]+/;
 
-export default function TopBar({ userEmail, userFullName }: Props) {
+export default function TopBar({ userEmail, userFullName, isAdmin }: Props) {
   const pathname = usePathname();
 
   if (
@@ -36,7 +38,8 @@ export default function TopBar({ userEmail, userFullName }: Props) {
     <header
       style={{
         position: "sticky",
-        top: 0,
+        // Sit below the admin view-switcher banner when it is present.
+        top: showsAdminBanner(pathname, !!isAdmin) ? VIEW_SWITCHER_HEIGHT : 0,
         zIndex: 40,
         height: 56,
         background: "var(--bg)",
