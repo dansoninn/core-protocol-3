@@ -1,10 +1,10 @@
 /**
  * Deterministic Icelandic-style price formatting.
  *
- * Deliberately avoids `toLocaleString` / `Intl.NumberFormat`: those produce
- * different output on the Vercel Node server than in some browsers (Node
- * renders "24.900" for is-IS, some browsers render "24,900"), which caused a
- * React hydration mismatch and forced the whole root to client render.
+ * Deliberately avoids `toLocaleString` / `Intl.NumberFormat`: server and browser
+ * ICU data can produce different output for the same locale (Node renders
+ * "24.900" for is-IS, some browsers render "24,900"), so formatting must be
+ * deterministic.
  *
  * Period as thousands separator, no decimals.
  *   24900 -> "24.900", 1500 -> "1.500", 950 -> "950"

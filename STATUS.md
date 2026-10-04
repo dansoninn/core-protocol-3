@@ -4,7 +4,7 @@ Live state only — what is done, open, unverified, decided.
 Durable reference (stack, schema, routes, conventions) lives in CLAUDE.md.
 **Update this file before finishing work.**
 
-Last updated: 2026-10-04 · HEAD `93df2ba`
+Last updated: 2026-10-04
 
 ## Done
 
@@ -51,10 +51,6 @@ Shipped earlier:
 
 ## Unverified
 
-- **Hydration errors #418 / #423 / #425.** Seen on production in one browser with
-  non-standard ICU data; localhost dev is clean. Never measured in a normal
-  Chrome against production. Until that measurement exists, treat this as
-  **unknown** — not a bug, and not resolved.
 - **The retryable/network branch in `middleware.ts`.** Never observed to fire:
   auth-js logs the retryable fetch error internally and surfaces
   `AuthSessionMissingError` to the caller instead. Kept as defensive code; see
@@ -72,3 +68,5 @@ Shipped earlier:
 - Payments parked (2026-10-04) in favour of continuing feature work.
 - The unverified retryable split is kept, with an in-code comment marking it
   inert, so no reader mistakes it for working outage handling.
+- Hydration errors seen in Sept were a test-browser artifact (non-standard ICU).
+  Production measured clean in Chrome on 2026-10-04.
