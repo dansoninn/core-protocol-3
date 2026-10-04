@@ -13,7 +13,7 @@ Recent commits:
 | Commit | What changed |
 |---|---|
 | `8577061` | Middleware redirects now carry the cleared Supabase auth cookie, so a stale refresh token no longer survives and loops (`web/middleware.ts`) |
-| `96fc0ac` | Admin view switcher — `ViewSwitcher.tsx`: banner on user pages, control in admin sidebar; adds the `--accent-line` token |
+| `96fc0ac` | Admin view switcher — `ViewSwitcher.tsx`: banner on user pages, control in admin sidebar; adds the `--accent-line` token. **Verified:** banner in-browser (stacking, light/dark, mobile); `Skoða notendasýn` in `/admin` confirmed rendering and working by Daniel |
 | `1566357` | Deterministic ISK price formatting — `web/lib/formatPrice.ts` replaces `toLocaleString` at 4 price call sites |
 | `28cc519` | Root `.gitignore`, removed stray root install |
 
@@ -59,9 +59,6 @@ Shipped earlier:
   auth-js logs the retryable fetch error internally and surfaces
   `AuthSessionMissingError` to the caller instead. Kept as defensive code; see
   the comment above it.
-- **ViewSwitcher admin sidebar control.** The user-facing banner was verified in
-  a browser (stacking, light/dark, mobile); the `Skoða notendasýn` control in the
-  admin sidebar shipped in `96fc0ac` without ever being seen rendered.
 
 ## Decided
 
@@ -70,7 +67,8 @@ Shipped earlier:
   bypass.
 - `/admin` fails closed to `/` when the role cannot be verified.
 - Prices use `formatPrice()`, never `toLocaleString` / `Intl` — server and
-  browser disagree and it breaks hydration.
+  browser ICU data can produce different output (e.g. "24.900" vs "24,900"), and
+  the admin table was rendering the wrong format.
 - Payments parked (2026-10-04) in favour of continuing feature work.
-- The unverified retryable split stays rather than being deleted; it costs
-  nothing and the failure mode is real in principle.
+- The unverified retryable split is kept, with an in-code comment marking it
+  inert, so no reader mistakes it for working outage handling.
