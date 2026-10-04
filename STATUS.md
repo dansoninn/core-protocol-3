@@ -4,7 +4,7 @@ Live state only — what is done, open, unverified, decided.
 Durable reference (stack, schema, routes, conventions) lives in CLAUDE.md.
 **Update this file before finishing work.**
 
-Last updated: 2026-10-04 · HEAD `8577061`
+Last updated: 2026-10-04 · HEAD `93df2ba`
 
 ## Done
 
