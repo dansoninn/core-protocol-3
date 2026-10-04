@@ -44,9 +44,6 @@ Shipped earlier:
   render during a Supabase outage.
 - **No user-facing behaviour when Supabase is unreachable.** Everyone is
   redirected to login, and login also needs Supabase. Undecided.
-- **`CoreProtocol/` subdirectory** — old Expo app with its own `.git`, tracked in
-  this repo as a gitlink (mode `160000`). Needs `git rm --cached CoreProtocol`
-  and cleanup.
 - **No Supabase backups** (free plan).
 
 ## Unverified
