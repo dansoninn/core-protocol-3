@@ -2,11 +2,6 @@
 //
 // Day-view rows (DbTask, DbBlock, DbExercise) are normalised to these shapes in
 // lib/dayNormalize.ts before any component sees them.
-//
-// Known mismatch, pending a migration: blocks.sets and blocks.reps are INTEGER
-// in production (confirmed) but declared string here. web/migration-sets-reps-
-// text.sql converts them to TEXT; until it has run, the normaliser coerces
-// them. Remove this note once the migration is confirmed.
 
 export interface DbCourse {
   id: string;

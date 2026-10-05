@@ -45,12 +45,6 @@ Shipped earlier:
 - **No user-facing behaviour when Supabase is unreachable.** Everyone is
   redirected to login, and login also needs Supabase. Undecided.
 - **No Supabase backups** (free plan).
-- **`blocks.sets` / `reps` → TEXT, awaiting Daniel's run** of
-  `web/migration-sets-reps-text.sql`. Confirmed INTEGER in production (that
-  caused the `.trim()` crash). Until it runs, the admin cannot save a range
-  like "8-12" — the database rejects it. After Daniel confirms: remove the
-  pending-migration note in `types/index.ts` and fix the CLAUDE.md schema
-  (`load`, not `load_kg`; sets/reps text). The normaliser's coercion stays.
 - **`blocks.load_kg`** — NUMERIC, unused by any code. Drop it later.
 - **`SUPABASE_SERVICE_ROLE_KEY` in `web/.env.local` is invalid** — 26 characters,
   rejected by Supabase. No app code uses it, but it blocks server-side

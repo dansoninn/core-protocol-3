@@ -27,15 +27,22 @@ work, update it before finishing.
 ```
 profiles (id, email, full_name, role, created_at)
 courses (id, title, slug, description, category, price, cover_image, instructor)
-exercises (id, name, category, description, video_url)
+exercises (id, name, category, description, video_url,
+           mux_asset_id, mux_playback_id)
 weeks (id, course_id, title, order_index)
 days (id, week_id, title, description, order_index)
-tasks (id, day_id, name, color, video_url, order_index)
-blocks (id, task_id, type['exercise'|'text'], order_index, 
-        exercise_id, content, sets, reps, load_kg)
+tasks (id, day_id, name, color, video_url, order_index,
+       instructions, format, work_sec, rest_sec, rounds, time_cap_sec, rep_scheme)
+blocks (id, task_id, type['exercise'|'text'], order_index,
+        exercise_id, content, sets, reps, load,
+        duration_sec, rest_sec, side, intensity, group_label)
 purchases (id, user_id, course_id, created_at)
 progress (id, user_id, block_id, completed_at)
 ```
+- `blocks.sets`, `reps` and `load` are TEXT — coaches write ranges and notes
+  ("8-12", "10/hlið", "max").
+- `blocks.load_kg` (NUMERIC) still exists but is unused — to be dropped (STATUS.md).
+- Day-view rows are normalised to `types/index.ts` in `lib/dayNormalize.ts`.
 
 ## Content Hierarchy
 Course → Week → Day → Task → Block (exercise or text)
