@@ -45,9 +45,9 @@ Shipped earlier:
 - **No user-facing behaviour when Supabase is unreachable.** Everyone is
   redirected to login, and login also needs Supabase. Undecided.
 - **No Supabase backups** (free plan).
-- **Day view redesign** — step 1/3 schema written
-  (`web/migration-day-view-v2.sql`), awaiting manual migration in Supabase.
-  Step 2: admin fields. Step 3: user view.
+- **Day view redesign** — step 1/3 schema live in Supabase. Step 2/3 admin
+  fields done (`components/admin/TaskSettings.tsx`, `BlockPrescription.tsx`),
+  **pending Daniel's check in /admin** — not yet seen rendered. Step 3: user view.
 
 ## Unverified
 

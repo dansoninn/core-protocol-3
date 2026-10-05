@@ -3,6 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import MuxPlayer from "@mux/mux-player-react";
+import type { BlockIntensity, BlockSide, TaskFormat } from "@/types";
+import TaskSettings, { VideoPartHint } from "@/components/admin/TaskSettings";
+import BlockPrescription from "@/components/admin/BlockPrescription";
 import { formatPrice } from "@/lib/formatPrice";
 
 // ─── DB types ─────────────────────────────────────────────────────────────────
@@ -47,6 +50,11 @@ interface DbBlock {
   sets: string | null;
   reps: string | null;
   load: string | null;
+  duration_sec: number | null;
+  rest_sec: number | null;
+  side: BlockSide | null;
+  intensity: BlockIntensity | null;
+  group_label: string | null;
 }
 
 interface DbTask {
@@ -56,6 +64,13 @@ interface DbTask {
   color: string;
   order_index: number;
   video_url: string | null;
+  instructions: string | null;
+  format: TaskFormat;
+  work_sec: number | null;
+  rest_sec: number | null;
+  rounds: number | null;
+  time_cap_sec: number | null;
+  rep_scheme: string | null;
   blocks: DbBlock[];
 }
 
@@ -1094,7 +1109,7 @@ function CourseBuilderTab() {
   useEffect(() => {
     Promise.all([
       supabase.from("courses").select("id, title").order("title"),
-      supabase.from("exercises").select("id, name, category").order("name"),
+      supabase.from("exercises").select("id, name, category, description").order("name"),
     ]).then(([courseRes, exRes]) => {
       setCourses((courseRes.data as DbCourse[]) ?? []);
       setExercises((exRes.data as DbExercise[]) ?? []);
@@ -1329,7 +1344,7 @@ function CourseBuilderTab() {
     else loadWeeks(selectedCourseId);
   };
 
-  const updateTaskField = async (taskId: string, patch: Partial<Pick<DbTask, "name" | "color" | "video_url">>) => {
+  const updateTaskField = async (taskId: string, patch: Partial<Pick<DbTask, "name" | "color" | "video_url" | "instructions" | "format" | "work_sec" | "rest_sec" | "rounds" | "time_cap_sec" | "rep_scheme">>) => {
     const { error } = await supabase.from("tasks").update(patch).eq("id", taskId);
     if (error) show(error.message, "error");
     else setTaskInState(taskId, patch);
@@ -1439,6 +1454,13 @@ function CourseBuilderTab() {
           color: task.color,
           order_index: task.order_index,
           video_url: task.video_url ?? null,
+          instructions: task.instructions ?? null,
+          format: task.format ?? "sets",
+          work_sec: task.work_sec ?? null,
+          rest_sec: task.rest_sec ?? null,
+          rounds: task.rounds ?? null,
+          time_cap_sec: task.time_cap_sec ?? null,
+          rep_scheme: task.rep_scheme ?? null,
         })
         .select()
         .single();
@@ -1457,6 +1479,11 @@ function CourseBuilderTab() {
             sets: block.sets ?? null,
             reps: block.reps ?? null,
             load: block.load ?? null,
+            duration_sec: block.duration_sec ?? null,
+            rest_sec: block.rest_sec ?? null,
+            side: block.side ?? null,
+            intensity: block.intensity ?? null,
+            group_label: block.group_label ?? null,
           })
           .select()
           .single();
@@ -1484,10 +1511,11 @@ function CourseBuilderTab() {
 
   const updateBlockFields = async (
     blockId: string,
-    patch: Partial<{ sets: string | null; reps: string | null; load: string | null }>
+    patch: Partial<Pick<DbBlock, "sets" | "reps" | "load" | "duration_sec" | "rest_sec" | "side" | "intensity" | "group_label" | "content">>
   ) => {
     const { error } = await supabase.from("blocks").update(patch).eq("id", blockId);
     if (error) show(error.message, "error");
+    else setBlockInState(blockId, patch);
   };
 
   const uploadTaskVideoMux = async (taskId: string, file: File) => {
@@ -1855,8 +1883,11 @@ function CourseBuilderTab() {
                                             })()}
                                           </div>
 
+                                          <TaskSettings task={task} onSave={(patch) => updateTaskField(task.id, patch)} />
+
                                           {/* Blocks */}
                                           <div style={{ borderTop: "1px solid var(--border)" }}>
+                                            {task.video_url && <VideoPartHint />}
                                             {(task.blocks ?? []).map((block, blockIdx) => {
                                               const isLast = blockIdx === (task.blocks?.length ?? 1) - 1;
                                               return (
@@ -1890,24 +1921,11 @@ function CourseBuilderTab() {
                                                             </div>
                                                           </div>
                                                         )}
-                                                        {/* Sets / Reps / Load */}
-                                                        <div style={{ display: "flex", gap: 8 }}>
-                                                          {([
-                                                            { key: "sets", label: "SET", val: block.sets, save: (v: string | null) => updateBlockFields(block.id, { sets: v }) },
-                                                            { key: "reps", label: "REPS", val: block.reps, save: (v: string | null) => updateBlockFields(block.id, { reps: v }) },
-                                                            { key: "load", label: "LOAD", val: block.load, save: (v: string | null) => updateBlockFields(block.id, { load: v }) },
-                                                          ] as const).map(({ key, label, val, save }) => (
-                                                            <div key={key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-                                                              <input
-                                                                defaultValue={val ?? ""}
-                                                                onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== (val ?? null)) save(v); }}
-                                                                style={{ width: 64, background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 8, textAlign: "center", fontFamily: "var(--font-bebas)", fontSize: 20, color: "var(--text)", outline: "none", padding: "4px 4px" }}
-                                                                placeholder="—"
-                                                              />
-                                                              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: "var(--muted2)", textTransform: "uppercase" }}>{label}</span>
-                                                            </div>
-                                                          ))}
-                                                        </div>
+                                                        <BlockPrescription
+                                                          block={block}
+                                                          exerciseDescription={exercises.find((e) => e.id === block.exercise_id)?.description ?? null}
+                                                          onSave={(patch) => updateBlockFields(block.id, patch)}
+                                                        />
                                                       </div>
                                                       <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
                                                         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
