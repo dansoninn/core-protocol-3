@@ -25,6 +25,22 @@ export interface DbDay {
   order_index: number;
 }
 
+/** Workout format for a task (part). Superset/complex is not a format — see DbBlock.group_label. */
+export type TaskFormat =
+  | "sets"
+  | "amrap"
+  | "emom"
+  | "tabata"
+  | "for_time"
+  | "rounds"
+  | "interval"
+  | "ladder"
+  | "chipper";
+
+export type BlockSide = "each_side" | "alternating";
+
+export type BlockIntensity = "light" | "moderate" | "hard";
+
 export interface DbTask {
   id: string;
   day_id: string;
@@ -32,6 +48,16 @@ export interface DbTask {
   color: string;
   order_index: number;
   video_url: string | null;
+  // Day view v2 (migration-day-view-v2.sql). Optional until that migration has
+  // run in Supabase — rows fetched before it do not have these columns.
+  // Tighten to required once the user view (step 3) consumes them.
+  instructions?: string | null; // "Leiðbeiningar" for the part
+  format?: TaskFormat; // NOT NULL DEFAULT 'sets' in the database
+  work_sec?: number | null; // interval/tabata work, EMOM interval
+  rest_sec?: number | null; // interval/tabata rest, rest between rounds
+  rounds?: number | null;
+  time_cap_sec?: number | null; // AMRAP duration, for_time/chipper cap
+  rep_scheme?: string | null; // ladder only, e.g. "2-4-6-8-10" or "21-15-9"
   blocks: DbBlock[];
 }
 
@@ -41,10 +67,18 @@ export interface DbBlock {
   type: "exercise" | "text";
   order_index: number;
   exercise_id: string | null;
+  // On an exercise block: a program-specific coaching note. When empty, the UI
+  // falls back to the exercise bank's exercises.description.
   content: string | null;
   sets: string | null;
   reps: string | null;
   load: string | null;
+  // Day view v2 — optional until the migration has run (see DbTask).
+  duration_sec?: number | null; // e.g. 30 for "30 sek."
+  rest_sec?: number | null; // rest after this exercise / after its group
+  side?: BlockSide | null;
+  intensity?: BlockIntensity | null;
+  group_label?: string | null; // "A", "B"… groups blocks into a superset/complex
   exercises: DbExercise | null;
 }
 

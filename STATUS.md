@@ -4,7 +4,7 @@ Live state only — what is done, open, unverified, decided.
 Durable reference (stack, schema, routes, conventions) lives in CLAUDE.md.
 **Update this file before finishing work.**
 
-Last updated: 2026-10-04
+Last updated: 2026-10-05
 
 ## Done
 
@@ -45,6 +45,9 @@ Shipped earlier:
 - **No user-facing behaviour when Supabase is unreachable.** Everyone is
   redirected to login, and login also needs Supabase. Undecided.
 - **No Supabase backups** (free plan).
+- **Day view redesign** — step 1/3 schema written
+  (`web/migration-day-view-v2.sql`), awaiting manual migration in Supabase.
+  Step 2: admin fields. Step 3: user view.
 
 ## Unverified
 
@@ -67,3 +70,11 @@ Shipped earlier:
   inert, so no reader mistakes it for working outage handling.
 - Hydration errors seen in Sept were a test-browser artifact (non-standard ICU).
   Production measured clean in Chrome on 2026-10-04.
+- Day view: a day overview page, then one page per part with
+  "Fyrri liður / Næsti liður". Gold accent, no blue actions.
+- Video parts (e.g. Aðalþáttur): one "Merkja lokið" for the whole part; tagged
+  exercises are for reference, not individually completed.
+- Workout format lives on the task. Superset/complex is a grouping of blocks
+  (`group_label`), not a format.
+- For parts with a video, total time = the Mux video duration. Without a video,
+  it is derived from the format.
