@@ -122,7 +122,7 @@ export type StripDayState = "current" | "done" | "open" | "locked";
 export interface StripDay {
   id: string;
   order_index: number;
-  /** null when the day is locked — it must not be a link. */
+  /** null when the day is locked — it must not be a link. Admins get an href even for locked days. */
   href: string | null;
   state: StripDayState;
 }
@@ -134,6 +134,8 @@ export interface DayNavTarget {
 
 export interface DayView {
   userId: string;
+  /** Admins may open any day; locked days still look locked to them. */
+  isAdmin: boolean;
   course: { id: string; title: string; slug: string };
   week: { id: string; title: string; number: number; total: number };
   day: { id: string; title: string; description: string | null; order_index: number };

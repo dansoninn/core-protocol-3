@@ -87,7 +87,12 @@ export default function DayOverview({
           prev={view.prevDay ? { href: view.prevDay.href, label: "Fyrri dagur", title: view.prevDay.title } : null}
           next={
             view.nextDay
-              ? { href: view.nextDay.locked ? null : view.nextDay.href, label: "Næsti dagur", title: view.nextDay.title }
+              ? {
+                  href: view.nextDay.locked && !view.isAdmin ? null : view.nextDay.href,
+                  locked: view.nextDay.locked,
+                  label: "Næsti dagur",
+                  title: view.nextDay.title,
+                }
               : null
           }
         />

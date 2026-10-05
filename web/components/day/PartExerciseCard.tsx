@@ -29,7 +29,7 @@ export default function PartExerciseCard({
   const exercise = block.exercises;
   const name = exercise?.name ?? "Æfing";
   // ExerciseVideoModal plays Mux only, so that is what makes the thumbnail tappable.
-  const playable = Boolean(exercise?.mux_playback_id);
+  const playable = Boolean(exercise?.mux_playback_id?.trim());
   const note = block.content?.trim() || exercise?.description?.trim() || null;
 
   return (

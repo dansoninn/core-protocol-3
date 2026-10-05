@@ -73,14 +73,21 @@ export default function BlockPrescription({
   exercise: BankExercise | null;
   onSave: (patch: BlockPrescriptionPatch) => void;
 }) {
-  const hasVideo = Boolean(exercise?.mux_playback_id?.trim() || exercise?.video_url?.trim());
+  // Only Mux counts: the user-side player and thumbnail play Mux only, so a
+  // legacy video_url is not a video the user can watch.
+  const hasMux = Boolean(exercise?.mux_playback_id?.trim());
+  const hasLegacyOnly = !hasMux && Boolean(exercise?.video_url?.trim());
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {/* Explanation video in the bank — so a missing one is caught here, not by a user */}
       {exercise && (
-        <span style={{ fontSize: 11, color: hasVideo ? "var(--success)" : "var(--muted2)" }}>
-          {hasVideo ? "Myndband ✓" : "Vantar útskýringarmyndband"}
+        <span style={{ fontSize: 11, color: hasMux ? "var(--success)" : "var(--muted2)" }}>
+          {hasMux
+            ? "Myndband ✓"
+            : hasLegacyOnly
+              ? "Gamalt myndband — hlaða upp í Mux"
+              : "Vantar útskýringarmyndband"}
         </span>
       )}
 

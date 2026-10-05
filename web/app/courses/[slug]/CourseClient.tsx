@@ -24,6 +24,8 @@ interface Props {
   blocksTotal: number;
   userId: string | null;
   dayProgress: Record<string, DayProgressData>;
+  /** Admins can open locked days; they still look locked, so the admin sees what users see. */
+  isAdmin: boolean;
 }
 
 // ── Status ring ───────────────────────────────────────────────────────────────
@@ -94,6 +96,7 @@ export default function CourseClient({
   blocksTotal,
   userId,
   dayProgress,
+  isAdmin,
 }: Props) {
   const allSortedDays = weeks.flatMap((w) =>
     w.days.map((d) => ({ ...d, weekId: w.id }))
@@ -396,11 +399,11 @@ export default function CourseClient({
                             alignItems: "center",
                             gap: 12,
                             background: isCurrent ? "var(--accent-dim)" : "var(--surface)",
-                            border: `1px solid ${isCurrent ? "rgba(59,107,255,0.35)" : "var(--border)"}`,
+                            border: `1px solid ${isCurrent ? "var(--accent-line)" : "var(--border)"}`,
                             borderRadius: 12,
                             padding: "14px 16px",
                             opacity: isLocked ? 0.3 : 1,
-                            cursor: (isUnlocked || isComplete) ? "pointer" : "not-allowed",
+                            cursor: (isUnlocked || isComplete || isAdmin) ? "pointer" : "not-allowed",
                             textDecoration: "none",
                             transition: "background 0.1s",
                           };
@@ -448,7 +451,7 @@ export default function CourseClient({
                             </>
                           );
 
-                          if (isUnlocked || isComplete) {
+                          if (isUnlocked || isComplete || isAdmin) {
                             return (
                               <Link
                                 key={day.id}

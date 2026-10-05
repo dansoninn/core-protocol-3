@@ -52,6 +52,9 @@ interface CourseWeekRow {
  * lock was previously display-only on the course overview, so a direct URL
  * opened any day. It uses the same rule as the overview (computeUnlockedDayIds).
  *
+ * Admins (profiles.role = 'admin') skip 3 and 4, so they can open any day and
+ * part. 1 and 2 still apply.
+ *
  * Returns the completed exercise block IDs for the whole course, so callers
  * need no second progress query.
  */
@@ -83,14 +86,20 @@ export async function requireDayAccess(
   } = await supabase.auth.getUser();
   if (!user) redirect(`/auth/login?next=${returnPath}`);
 
-  // 3. Purchased
-  const { data: purchase } = await supabase
-    .from("purchases")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("course_id", course.id)
-    .maybeSingle();
-  if (!purchase) redirect(`/courses/${params.slug}`);
+  // 3. Purchased — or admin. purchases and profiles have no foreign key
+  // between them, so the role cannot ride along in the purchase query; it runs
+  // in parallel instead, which adds no round trip.
+  const [{ data: purchase }, { data: profile }] = await Promise.all([
+    supabase
+      .from("purchases")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("course_id", course.id)
+      .maybeSingle(),
+    supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
+  ]);
+  const isAdmin = profile?.role === "admin";
+  if (!purchase && !isAdmin) redirect(`/courses/${params.slug}`);
 
   // 4. Unlocked — same completion rule as the course overview page
   const { data: weeksRaw } = await supabase
@@ -138,7 +147,7 @@ export async function requireDayAccess(
     orderedDays.map((d) => d.id),
     completedDayIds
   );
-  if (!unlocked.has(params.dayId)) redirect(`/courses/${params.slug}`);
+  if (!unlocked.has(params.dayId) && !isAdmin) redirect(`/courses/${params.slug}`);
 
   // ── Navigation ──────────────────────────────────────────────────────────────
   const hrefFor = (weekId: string, dayId: string) =>
@@ -152,7 +161,7 @@ export async function requireDayAccess(
   const weekDays: StripDay[] = (weeks[weekIdx]?.days ?? []).map((d) => ({
     id: d.id,
     order_index: d.order_index,
-    href: unlocked.has(d.id) ? hrefFor(params.weekId, d.id) : null,
+    href: unlocked.has(d.id) || isAdmin ? hrefFor(params.weekId, d.id) : null,
     state:
       d.id === params.dayId
         ? "current"
@@ -167,6 +176,7 @@ export async function requireDayAccess(
     completedBlockIds,
     view: {
       userId: user.id,
+      isAdmin,
       course: { id: course.id, title: course.title, slug: course.slug },
       week: {
         id: day.weeks.id,

@@ -3,8 +3,10 @@ import type { CSSProperties, ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Lock } from "lucide-react";
 
 export interface NavItem {
-  /** null renders a disabled (locked) button. */
+  /** null renders a disabled button. */
   href: string | null;
+  /** Locked look (muted, padlock). With an href it still opens — the admin case. */
+  locked?: boolean;
   label: string;
   title?: string;
 }
@@ -22,6 +24,7 @@ export default function PrevNextNav({ prev, next }: { prev: NavItem | null; next
 function NavButton({ item, direction }: { item: NavItem; direction: "prev" | "next" }) {
   const isNext = direction === "next";
   const disabled = item.href === null;
+  const looksLocked = disabled || item.locked === true;
   const style: CSSProperties = {
     display: "flex",
     alignItems: "center",
@@ -32,10 +35,11 @@ function NavButton({ item, direction }: { item: NavItem; direction: "prev" | "ne
     borderRadius: 14,
     textDecoration: "none",
     textAlign: isNext ? "right" : "left",
-    ...(isNext && !disabled
+    ...(isNext && !looksLocked
       ? { background: "var(--accent)", color: "var(--bg)", border: "1px solid var(--accent)" }
       : { background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)" }),
-    ...(disabled ? { opacity: 0.4, cursor: "default" } : {}),
+    ...(looksLocked ? { opacity: 0.4 } : {}),
+    ...(disabled ? { cursor: "default" } : {}),
   };
 
   const body: ReactNode = (
@@ -59,7 +63,7 @@ function NavButton({ item, direction }: { item: NavItem; direction: "prev" | "ne
           </span>
         )}
       </span>
-      {isNext && (disabled ? <Lock size={15} style={{ flexShrink: 0 }} /> : <ChevronRight size={18} style={{ flexShrink: 0 }} />)}
+      {isNext && (looksLocked ? <Lock size={15} style={{ flexShrink: 0 }} /> : <ChevronRight size={18} style={{ flexShrink: 0 }} />)}
     </>
   );
 

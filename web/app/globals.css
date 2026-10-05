@@ -26,9 +26,12 @@
   --surface2: #eef0f3;
   --surface3: #e4e7eb;
   --border: rgba(0, 0, 0, 0.08);
-  --accent: #2855e0;
-  --accent-dim: rgba(40, 85, 224, 0.10);
-  --accent-line: rgba(40, 85, 224, 0.35);
+  /* Gold, darkened for light backgrounds: #825A00 is 4.94:1 against the
+     worst case (accent text on the 10% tint over --bg), above WCAG AA 4.5:1.
+     The dark theme's #F0C070 would be 1.36:1 here. */
+  --accent: #825A00;
+  --accent-dim: rgba(130, 90, 0, 0.10);
+  --accent-line: rgba(130, 90, 0, 0.35);
   --success: #1a9e75;
   --success-dim: rgba(26, 158, 117, 0.10);
   --text: #0f1117;

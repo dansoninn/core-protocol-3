@@ -56,12 +56,10 @@ Shipped earlier:
   Decide in 3b.
 - **Admin: visible autosave status** ("Vistar…" / "Vistað ✓") per field, and a
   warning before leaving with an unsaved or failed edit.
-- **Light mode accent is blue.** `--accent` is blue in the light theme, so the
-  day view's "gold, no blue" holds in dark mode only. Decide whether light mode
-  should switch to gold.
-- **Legacy `video_url` exercises.** The admin badge counts `video_url` as
-  "Myndband ✓", but the user-side thumbnail and `ExerciseVideoModal` play Mux
-  only, so such an exercise has no playable video for users.
+- **Hard-coded dark-theme gold** (`rgba(240,192,112,…)`) in
+  `app/dashboard/page.tsx` (4 places), `BottomNav.tsx`, `TopBar.tsx` and the
+  admin `Sidebar.tsx`. Not blue, but pale next to the light theme's gold;
+  should use `--accent-dim` / `--accent-line`.
 
 ## Unverified
 
@@ -96,6 +94,17 @@ Shipped earlier:
   or part URL to the course page unless every earlier day is complete — the
   same rule the course overview displays (`computeUnlockedDayIds`, shared).
   Before 3a the lock was display-only.
+- **Admins bypass day access.** A user with `profiles.role = 'admin'` can open
+  any day and part regardless of enrollment or unlock. Locked days still look
+  locked to them (day strip, "Næsti dagur", course overview) but open. The role
+  is read in parallel with the purchase query — the two tables have no foreign
+  key between them, so they cannot share one query.
+- Light theme accent is gold `#825A00` (dim/line: the same at 10% / 35%).
+  Measured 4.94:1 in the worst case (accent text on the 10% tint over `--bg`),
+  6.16:1 on `--surface`, above WCAG AA 4.5:1.
+- "Myndband ✓" in the course builder counts `mux_playback_id` only, because
+  the player plays Mux only. A legacy `video_url` without a Mux id shows
+  "Gamalt myndband — hlaða upp í Mux"; its user-side thumbnail is not tappable.
 - In 3a a video part shows no computed total time; its time will be the Mux
   duration (3b). Summing its reference exercises would show the wrong number.
 - After a progress write the part page calls `router.refresh()`, which empties

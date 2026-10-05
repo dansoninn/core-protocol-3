@@ -73,20 +73,27 @@ export default async function CoursePage({
   } = await supabase.auth.getUser();
 
   let purchased = false;
+  let isAdmin = false;
   let blocksCompleted = 0;
   let blocksTotal = 0;
   let completedDayIds: string[] = [];
   const dayProgress: Record<string, DayProgressData> = {};
 
   if (user) {
-    const { data: purchase } = await supabase
-      .from("purchases")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("course_id", course.id)
-      .maybeSingle();
+    // Role read in parallel with the purchase — no foreign key links the two
+    // tables, so it cannot share the query, but it adds no round trip.
+    const [{ data: purchase }, { data: profile }] = await Promise.all([
+      supabase
+        .from("purchases")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("course_id", course.id)
+        .maybeSingle(),
+      supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
+    ]);
 
     purchased = !!purchase;
+    isAdmin = profile?.role === "admin";
 
     if (purchased) {
       // Collect all block IDs in this course
@@ -157,6 +164,7 @@ export default async function CoursePage({
       blocksTotal={blocksTotal}
       userId={user?.id ?? null}
       dayProgress={dayProgress}
+      isAdmin={isAdmin}
     />
   );
 }

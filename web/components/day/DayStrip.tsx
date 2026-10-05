@@ -21,7 +21,10 @@ const STATE_STYLE: Record<StripDayState, { box: CSSProperties; color: string }> 
   },
 };
 
-/** The week's days — MÁN 1 / ÞRI 2 / … Locked days are not links. */
+/**
+ * The week's days — MÁN 1 / ÞRI 2 / … Locked days are not links, except for
+ * admins: theirs keep the locked look (so they see what users see) but open.
+ */
 export default function DayStrip({ days, compact = false }: { days: StripDay[]; compact?: boolean }) {
   return (
     <nav
@@ -58,6 +61,7 @@ export default function DayStrip({ days, compact = false }: { days: StripDay[]; 
             href={d.href}
             style={style}
             aria-current={d.state === "current" ? "page" : undefined}
+            title={d.state === "locked" ? "Læst notendum — opið stjórnanda" : undefined}
           >
             {label}
           </Link>
