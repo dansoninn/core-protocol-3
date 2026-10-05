@@ -23,6 +23,13 @@ export interface BlockPrescriptionValue {
 
 export type BlockPrescriptionPatch = Partial<BlockPrescriptionValue>;
 
+/** The tagged exercise as it exists in the exercise bank. */
+export interface BankExercise {
+  description: string | null;
+  video_url: string | null;
+  mux_playback_id: string | null;
+}
+
 const SIDE_OPTIONS: { value: BlockSide; label: string }[] = [
   { value: "each_side", label: "Báðar hliðar" },
   { value: "alternating", label: "Til skiptis" },
@@ -58,16 +65,25 @@ const bigLabelStyle = {
 
 export default function BlockPrescription({
   block,
-  exerciseDescription,
+  exercise,
   onSave,
 }: {
   block: BlockPrescriptionValue;
-  /** The exercise bank description — what the user sees when the note is empty. */
-  exerciseDescription: string | null;
+  /** The tagged exercise from the bank, or null when none is tagged yet. */
+  exercise: BankExercise | null;
   onSave: (patch: BlockPrescriptionPatch) => void;
 }) {
+  const hasVideo = Boolean(exercise?.mux_playback_id?.trim() || exercise?.video_url?.trim());
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {/* Explanation video in the bank — so a missing one is caught here, not by a user */}
+      {exercise && (
+        <span style={{ fontSize: 11, color: hasVideo ? "var(--success)" : "var(--muted2)" }}>
+          {hasVideo ? "Myndband ✓" : "Vantar útskýringarmyndband"}
+        </span>
+      )}
+
       {/* Sets / Reps / Load (unchanged) + Tími / Hvíld */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         {([
@@ -162,7 +178,7 @@ export default function BlockPrescription({
           value={block.content}
           onSave={(content) => onSave({ content })}
           placeholder={
-            exerciseDescription?.trim() ||
+            exercise?.description?.trim() ||
             "Engin lýsing í æfingabankanum — ekkert birtist ef þetta er tómt."
           }
         />

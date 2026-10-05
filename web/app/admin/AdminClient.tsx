@@ -1109,7 +1109,7 @@ function CourseBuilderTab() {
   useEffect(() => {
     Promise.all([
       supabase.from("courses").select("id, title").order("title"),
-      supabase.from("exercises").select("id, name, category, description").order("name"),
+      supabase.from("exercises").select("id, name, category, description, video_url, mux_playback_id").order("name"),
     ]).then(([courseRes, exRes]) => {
       setCourses((courseRes.data as DbCourse[]) ?? []);
       setExercises((exRes.data as DbExercise[]) ?? []);
@@ -1923,7 +1923,7 @@ function CourseBuilderTab() {
                                                         )}
                                                         <BlockPrescription
                                                           block={block}
-                                                          exerciseDescription={exercises.find((e) => e.id === block.exercise_id)?.description ?? null}
+                                                          exercise={exercises.find((e) => e.id === block.exercise_id) ?? null}
                                                           onSave={(patch) => updateBlockFields(block.id, patch)}
                                                         />
                                                       </div>
