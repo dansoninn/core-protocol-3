@@ -45,13 +45,13 @@ Shipped earlier:
 - **No user-facing behaviour when Supabase is unreachable.** Everyone is
   redirected to login, and login also needs Supabase. Undecided.
 - **No Supabase backups** (free plan).
-- **Live schema unconfirmed.** The day view crashed in production calling
-  `.trim()` on a non-string; `blocks.sets` / `reps` are the likely integers
-  (CLAUDE.md still lists `load_kg`, the migrations use `load`). Daniel to run the
-  `information_schema` query for tasks, blocks and exercises; then align
-  `types/index.ts` and the CLAUDE.md schema with the result. Until then
-  `lib/dayNormalize.ts` guards the day view, and logs each mismatched column
-  once (`[dayNormalize] … arrived as …` in Vercel logs).
+- **`blocks.sets` / `reps` → TEXT, awaiting Daniel's run** of
+  `web/migration-sets-reps-text.sql`. Confirmed INTEGER in production (that
+  caused the `.trim()` crash). Until it runs, the admin cannot save a range
+  like "8-12" — the database rejects it. After Daniel confirms: remove the
+  pending-migration note in `types/index.ts` and fix the CLAUDE.md schema
+  (`load`, not `load_kg`; sets/reps text). The normaliser's coercion stays.
+- **`blocks.load_kg`** — NUMERIC, unused by any code. Drop it later.
 - **`SUPABASE_SERVICE_ROLE_KEY` in `web/.env.local` is invalid** — 26 characters,
   rejected by Supabase. No app code uses it, but it blocks server-side
   diagnostics. Replace with the project's secret key if it is wanted.
@@ -117,6 +117,8 @@ Shipped earlier:
 - Light theme accent is gold `#825A00` (dim/line: the same at 10% / 35%).
   Measured 4.94:1 in the worst case (accent text on the 10% tint over `--bg`),
   6.16:1 on `--surface`, above WCAG AA 4.5:1.
+- `blocks.sets` and `blocks.reps` are TEXT, so coaches can write ranges and
+  notes — "8-12", "3-4", "10/hlið", "max".
 - Day-view rows are normalised to the declared types once, in
   `lib/dayNormalize.ts` via `loadDayParts`, not with `String()` in components.
   Text columns become `string | null`, integer columns `number | null`,
