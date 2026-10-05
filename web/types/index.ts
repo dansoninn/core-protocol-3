@@ -1,4 +1,10 @@
 // Types that match the Supabase database schema (snake_case columns).
+//
+// Day-view rows (DbTask, DbBlock, DbExercise) are normalised to these shapes in
+// lib/dayNormalize.ts before any component sees them. The live column types
+// are not yet confirmed against these declarations — blocks.sets / reps may be
+// integer in production (see STATUS.md). Until confirmed, trust the declared
+// type only for values that came through the normaliser.
 
 export interface DbCourse {
   id: string;

@@ -45,6 +45,16 @@ Shipped earlier:
 - **No user-facing behaviour when Supabase is unreachable.** Everyone is
   redirected to login, and login also needs Supabase. Undecided.
 - **No Supabase backups** (free plan).
+- **Live schema unconfirmed.** The day view crashed in production calling
+  `.trim()` on a non-string; `blocks.sets` / `reps` are the likely integers
+  (CLAUDE.md still lists `load_kg`, the migrations use `load`). Daniel to run the
+  `information_schema` query for tasks, blocks and exercises; then align
+  `types/index.ts` and the CLAUDE.md schema with the result. Until then
+  `lib/dayNormalize.ts` guards the day view, and logs each mismatched column
+  once (`[dayNormalize] … arrived as …` in Vercel logs).
+- **`SUPABASE_SERVICE_ROLE_KEY` in `web/.env.local` is invalid** — 26 characters,
+  rejected by Supabase. No app code uses it, but it blocks server-side
+  diagnostics. Replace with the project's secret key if it is wanted.
 - **Day view redesign** — step 1 schema live in Supabase. Step 2 admin fields
   done, **pending Daniel's check in /admin**. **Step 3a done (day overview +
   one page per part), pending Daniel's check** — logic tested and layout checked
@@ -56,6 +66,11 @@ Shipped earlier:
   Decide in 3b.
 - **Admin: visible autosave status** ("Vistar…" / "Vistað ✓") per field, and a
   warning before leaving with an unsaved or failed edit.
+- **Admin: quick-tag field on parts with a video.** A persistent exercise-bank
+  search box under the part. Enter adds the top match as a new exercise block
+  (a tag) and keeps focus, so the next one can be typed straight away. Skips
+  exercises already tagged on that part. Optional — adding a single exercise
+  the current way still works.
 - **Hard-coded dark-theme gold** (`rgba(240,192,112,…)`) in
   `app/dashboard/page.tsx` (4 places), `BottomNav.tsx`, `TopBar.tsx` and the
   admin `Sidebar.tsx`. Not blue, but pale next to the light theme's gold;
@@ -102,6 +117,10 @@ Shipped earlier:
 - Light theme accent is gold `#825A00` (dim/line: the same at 10% / 35%).
   Measured 4.94:1 in the worst case (accent text on the 10% tint over `--bg`),
   6.16:1 on `--surface`, above WCAG AA 4.5:1.
+- Day-view rows are normalised to the declared types once, in
+  `lib/dayNormalize.ts` via `loadDayParts`, not with `String()` in components.
+  Text columns become `string | null`, integer columns `number | null`,
+  constrained values fall back to null / 'sets'.
 - "Myndband ✓" in the course builder counts `mux_playback_id` only, because
   the player plays Mux only. A legacy `video_url` without a Mux id shows
   "Gamalt myndband — hlaða upp í Mux"; its user-side thumbnail is not tappable.

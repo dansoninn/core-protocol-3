@@ -6,6 +6,7 @@ import {
   type DayView,
   type StripDay,
 } from "@/lib/dayLogic";
+import { normalizePart } from "@/lib/dayNormalize";
 
 // Access checks and data for the day overview and the part pages. Both pages
 // call requireDayAccess(), so a direct part URL gets exactly the same checks
@@ -200,7 +201,10 @@ export async function requireDayAccess(
   };
 }
 
-/** The day's parts with their blocks (sorted) and each block's exercise. */
+/**
+ * The day's parts with their blocks (sorted) and each block's exercise,
+ * normalised to the declared types — see lib/dayNormalize.ts for why.
+ */
 export async function loadDayParts(dayId: string): Promise<DbTask[]> {
   const supabase = createClient();
   const { data } = await supabase
@@ -215,8 +219,5 @@ export async function loadDayParts(dayId: string): Promise<DbTask[]> {
     .eq("day_id", dayId)
     .order("order_index");
 
-  return ((data as unknown as DbTask[]) ?? []).map((t) => ({
-    ...t,
-    blocks: [...(t.blocks ?? [])].sort((a, b) => a.order_index - b.order_index),
-  }));
+  return (data ?? []).map(normalizePart);
 }
