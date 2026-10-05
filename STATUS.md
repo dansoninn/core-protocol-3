@@ -45,9 +45,23 @@ Shipped earlier:
 - **No user-facing behaviour when Supabase is unreachable.** Everyone is
   redirected to login, and login also needs Supabase. Undecided.
 - **No Supabase backups** (free plan).
-- **Day view redesign** — step 1/3 schema live in Supabase. Step 2/3 admin
-  fields done (`components/admin/TaskSettings.tsx`, `BlockPrescription.tsx`),
-  **pending Daniel's check in /admin** — not yet seen rendered. Step 3: user view.
+- **Day view redesign** — step 1 schema live in Supabase. Step 2 admin fields
+  done, **pending Daniel's check in /admin**. **Step 3a done (day overview +
+  one page per part), pending Daniel's check** — logic tested and layout checked
+  at 375px with fixture data only; never seen with real data or a real session.
+- **Step 3b** — video part layout, format stat tiles, single "Merkja lokið" for
+  video parts, superset/complex grouping (A1/A2).
+- **A part with zero exercise blocks cannot be marked done** (progress is
+  block-level). It is left out of the "{done} / {total} liðir" count for now.
+  Decide in 3b.
+- **Admin: visible autosave status** ("Vistar…" / "Vistað ✓") per field, and a
+  warning before leaving with an unsaved or failed edit.
+- **Light mode accent is blue.** `--accent` is blue in the light theme, so the
+  day view's "gold, no blue" holds in dark mode only. Decide whether light mode
+  should switch to gold.
+- **Legacy `video_url` exercises.** The admin badge counts `video_url` as
+  "Myndband ✓", but the user-side thumbnail and `ExerciseVideoModal` play Mux
+  only, so such an exercise has no playable video for users.
 
 ## Unverified
 
@@ -78,3 +92,12 @@ Shipped earlier:
   (`group_label`), not a format.
 - For parts with a video, total time = the Mux video duration. Without a video,
   it is derived from the format.
+- Locked days are refused server-side. `lib/dayAccess.ts` redirects a direct day
+  or part URL to the course page unless every earlier day is complete — the
+  same rule the course overview displays (`computeUnlockedDayIds`, shared).
+  Before 3a the lock was display-only.
+- In 3a a video part shows no computed total time; its time will be the Mux
+  duration (3b). Summing its reference exercises would show the wrong number.
+- After a progress write the part page calls `router.refresh()`, which empties
+  Next's 30s client router cache so the overview shows fresh progress. This is
+  a deliberate exception to the no-refresh rule, which is about admin edits.

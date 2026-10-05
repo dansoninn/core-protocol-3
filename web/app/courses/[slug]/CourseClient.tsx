@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { DbCourse, DbWeek } from "@/types";
 import { formatPrice } from "@/lib/formatPrice";
+import { computeUnlockedDayIds } from "@/lib/dayLogic";
 
 interface DayProgressData {
   blocksComplete: number;
@@ -106,17 +107,11 @@ export default function CourseClient({
     ? weeks.find((w) => w.days.some((d) => d.id === firstIncompleteDayId))?.id ?? null
     : null;
 
-  // Unlock set: all days up to and including first incomplete
-  const unlockedDayIds = new Set<string>();
-  if (initialPurchased) {
-    let unlocking = true;
-    for (const day of allSortedDays) {
-      if (unlocking) {
-        unlockedDayIds.add(day.id);
-        if (!completedDayIds.includes(day.id)) unlocking = false;
-      }
-    }
-  }
+  // Unlock set: all days up to and including first incomplete. Shared with the
+  // server-side check in lib/dayAccess.ts so the two can never disagree.
+  const unlockedDayIds = initialPurchased
+    ? computeUnlockedDayIds(allSortedDays.map((d) => d.id), new Set(completedDayIds))
+    : new Set<string>();
 
   const [purchased, setPurchased] = useState(initialPurchased);
   const [buying, setBuying] = useState(false);

@@ -67,7 +67,8 @@ exercise search with pills, duplicate day, move up/down
 - `/` — homepage with course grid
 - `/courses` — all courses
 - `/courses/[slug]` — course overview with progress
-- `/courses/[slug]/weeks/[weekId]/days/[dayId]` — day view
+- `/courses/[slug]/weeks/[weekId]/days/[dayId]` — day overview
+- `/courses/[slug]/weeks/[weekId]/days/[dayId]/tasks/[taskId]` — one part of the day
 - `/dashboard` — user home
 - `/profile` — enrolled courses + streak
 - `/settings` — name + password
