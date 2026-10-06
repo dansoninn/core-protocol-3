@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import MuxPlayer from "@mux/mux-player-react";
 import type { BlockIntensity, BlockSide, TaskFormat } from "@/types";
 import TaskSettings, { VideoPartHint } from "@/components/admin/TaskSettings";
+import QuickTag from "@/components/admin/QuickTag";
 import BlockPrescription from "@/components/admin/BlockPrescription";
 import { formatPrice } from "@/lib/formatPrice";
 import { formatNumericDate } from "@/lib/formatDate";
@@ -1989,6 +1990,14 @@ function CourseBuilderTab() {
                                               );
                                             })}
                                           </div>
+
+                                          {task.video_url && (
+                                            <QuickTag
+                                              exercises={exercises}
+                                              taggedExerciseIds={new Set((task.blocks ?? []).flatMap((b) => (b.type === "exercise" && b.exercise_id ? [b.exercise_id] : [])))}
+                                              onAdd={(exerciseId) => addBlock(task.id, task.blocks?.length ?? 0, "exercise", exerciseId)}
+                                            />
+                                          )}
 
                                           {/* Add block */}
                                           <div style={{ padding: "10px 14px", borderTop: "1px solid var(--border)" }}>
