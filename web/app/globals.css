@@ -12,8 +12,11 @@
   --accent-dim: rgba(240, 192, 112, 0.08);
   --accent-glow: rgba(240, 192, 112, 0.2);
   --accent-line: rgba(240, 192, 112, 0.35);
-  --success: #708893;
-  --success-dim: rgba(112, 136, 147, 0.1);
+  /* Done/complete. #3FBF8F is 7.95:1 on --bg and 5.21:1 in the worst case
+     (success text on its 12% tint over --surface2), above WCAG AA 4.5:1.
+     Was slate #708893, which made a finished part read as a disabled button. */
+  --success: #3FBF8F;
+  --success-dim: rgba(63, 191, 143, 0.12);
   --text: #E8F2F8;
   --muted: #4A6070;
   --muted2: #5A7A90;
