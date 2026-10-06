@@ -65,5 +65,32 @@ export function useBlockProgress(userId: string, initialCompletedBlockIds: strin
     if (changed) router.refresh();
   };
 
-  return { completedIds, saving, toggle };
+  /**
+   * Un-mark several blocks in one write. Used by a whole part (a video part)
+   * whose tagged exercises were ticked one by one before step 3b.2: its
+   * "afmerkja" has to clear those rows, as there is no task_progress row.
+   */
+  const clear = async (e: MouseEvent, blockIds: string[]) => {
+    e.preventDefault();
+    const ids = blockIds.filter((id) => completedIds.has(id));
+    if (saving || ids.length === 0) return;
+    setSaving(ids[0]);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("progress")
+      .delete()
+      .eq("user_id", userId)
+      .in("block_id", ids);
+    if (!error) {
+      setCompletedIds((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.delete(id));
+        return next;
+      });
+    }
+    setSaving(null);
+    if (!error) router.refresh();
+  };
+
+  return { completedIds, saving, toggle, clear };
 }

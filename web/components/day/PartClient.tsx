@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import Link from "next/link";
 import { Check, ChevronLeft } from "lucide-react";
 import type { DbBlock, DbExercise, DbTask } from "@/types";
@@ -51,7 +51,7 @@ export default function PartClient({
   /** Parts marked done as a whole (task_progress). */
   completedTaskIds: string[];
 }) {
-  const { completedIds, saving, toggle } = useBlockProgress(view.userId, initialCompletedBlockIds);
+  const { completedIds, saving, toggle, clear } = useBlockProgress(view.userId, initialCompletedBlockIds);
   const { completedTaskIds: completedTasks, savingTask, failedTask, toggleTask } = useTaskProgress(
     view.userId,
     completedTaskIds
@@ -71,6 +71,12 @@ export default function PartClient({
   const isVideo = Boolean(part.video_url);
   const whole = isWholePart(part);
   const wholeDone = completedTasks.has(part.id);
+  // The button follows the part's done state. A video part can be done by its
+  // blocks alone (ticked before 3b.2); un-marking then clears those rows.
+  const doneByBlocksOnly = whole && partDone && !wholeDone;
+  const wholeSaving = savingTask === part.id || (doneByBlocksOnly && saving !== null);
+  const onWholeClick = (e: MouseEvent) =>
+    doneByBlocksOnly ? clear(e, exercises.map((b) => b.id)) : toggleTask(e, part.id);
   // A video part's time and pace come from the video; no format tiles.
   const format = isVideo ? null : formatSummary(part);
 
@@ -186,22 +192,22 @@ export default function PartClient({
           <div style={{ marginTop: 24 }}>
             <button
               type="button"
-              onClick={(e) => toggleTask(e, part.id)}
-              disabled={savingTask === part.id}
+              onClick={onWholeClick}
+              disabled={wholeSaving}
               style={{
                 width: "100%",
                 padding: "14px 16px",
                 borderRadius: 14,
                 fontSize: 15,
                 fontWeight: 700,
-                cursor: savingTask === part.id ? "default" : "pointer",
-                opacity: savingTask === part.id ? 0.6 : 1,
-                ...(wholeDone
+                cursor: wholeSaving ? "default" : "pointer",
+                opacity: wholeSaving ? 0.6 : 1,
+                ...(partDone
                   ? { background: "var(--success-dim)", color: "var(--success)", border: "1px solid var(--success)" }
                   : { background: "var(--accent)", color: "var(--bg)", border: "1px solid var(--accent)" }),
               }}
             >
-              {savingTask === part.id ? "Vistar…" : wholeDone ? "Lokið ✓ — afmerkja" : "Merkja lokið"}
+              {wholeSaving ? "Vistar…" : partDone ? "Lokið ✓ — afmerkja" : "Merkja lokið"}
             </button>
             {failedTask === part.id && (
               <p role="alert" style={{ fontSize: 12, color: "var(--muted2)", marginTop: 8, textAlign: "center" }}>
