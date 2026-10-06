@@ -69,6 +69,10 @@ implementation: `isPartDone` / `partProgress` / `isDayDone` in `lib/dayLogic.ts`
   check, not a substitute.
 - Use the `--accent-line` CSS variable for accent borders — never hardcode rgba
   values, they break in light mode
+- Dates via `lib/formatDate.ts`, prices via `lib/formatPrice.ts` — never
+  `toLocaleString` / `toLocaleDateString` / `Intl` (server and browser ICU differ)
+- Progress numbers count parts (`partsProgress` / `isPartDone` in
+  `lib/dayLogic.ts`), never raw blocks
 
 ## Storage Buckets (Supabase)
 - `course-images` — public, course cover images
