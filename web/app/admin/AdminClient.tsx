@@ -71,6 +71,7 @@ interface DbTask {
   rounds: number | null;
   time_cap_sec: number | null;
   rep_scheme: string | null;
+  video_duration_sec: number | null;
   blocks: DbBlock[];
 }
 
@@ -1344,7 +1345,7 @@ function CourseBuilderTab() {
     else loadWeeks(selectedCourseId);
   };
 
-  const updateTaskField = async (taskId: string, patch: Partial<Pick<DbTask, "name" | "color" | "video_url" | "instructions" | "format" | "work_sec" | "rest_sec" | "rounds" | "time_cap_sec" | "rep_scheme">>) => {
+  const updateTaskField = async (taskId: string, patch: Partial<Pick<DbTask, "name" | "color" | "video_url" | "video_duration_sec" | "instructions" | "format" | "work_sec" | "rest_sec" | "rounds" | "time_cap_sec" | "rep_scheme">>) => {
     const { error } = await supabase.from("tasks").update(patch).eq("id", taskId);
     if (error) show(error.message, "error");
     else setTaskInState(taskId, patch);
@@ -1454,6 +1455,7 @@ function CourseBuilderTab() {
           color: task.color,
           order_index: task.order_index,
           video_url: task.video_url ?? null,
+          video_duration_sec: task.video_duration_sec ?? null,
           instructions: task.instructions ?? null,
           format: task.format ?? "sets",
           work_sec: task.work_sec ?? null,
@@ -1536,6 +1538,10 @@ function CourseBuilderTab() {
       if (!putRes.ok) throw new Error(`Upload to Mux failed (${putRes.status})`);
 
       set("processing");
+      // Mux assigns the playback ID while the asset is still preparing; the
+      // duration only exists once it is ready, so wait for that. One update
+      // for both, so the duration can never belong to a previous video.
+      let pendingPlaybackId: string | null = null;
       for (let i = 0; i < 30; i++) {
         await new Promise((r) => setTimeout(r, 2000));
         const pollRes = await fetch(`/api/mux/upload?uploadId=${uploadId}`);
@@ -1543,11 +1549,22 @@ function CourseBuilderTab() {
         if (data.status === "errored") {
           throw new Error(data.error ?? "Mux asset processing failed");
         }
-        if (data.playbackId) {
-          await updateTaskField(taskId, { video_url: data.playbackId });
+        if (data.playbackId) pendingPlaybackId = data.playbackId;
+        if (data.playbackId && data.status === "ready") {
+          await updateTaskField(taskId, {
+            video_url: data.playbackId,
+            video_duration_sec: data.durationSec ?? null,
+          });
           set("done");
           return;
         }
+      }
+      // Still preparing after a minute: keep the upload, leave the duration
+      // empty — scripts/backfill-video-duration.mjs fills it later.
+      if (pendingPlaybackId) {
+        await updateTaskField(taskId, { video_url: pendingPlaybackId, video_duration_sec: null });
+        set("done");
+        return;
       }
       throw new Error("Timed out waiting for Mux to process the video");
     } catch (err) {

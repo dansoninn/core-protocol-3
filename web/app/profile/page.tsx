@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { isDayDone } from "@/lib/dayLogic";
 import ProfileSignOut from "./ProfileSignOut";
 import ProfileThemeToggle from "./ProfileThemeToggle";
 
@@ -18,7 +19,7 @@ interface PurchaseRow {
     title: string;
     slug: string;
     cover_image: string | null;
-    weeks: { days: { tasks: { blocks: { id: string }[] }[] }[] }[];
+    weeks: { days: { tasks: { id: string; blocks: { id: string; type: string }[] }[] }[] }[];
   };
 }
 
@@ -42,16 +43,23 @@ export default async function ProfilePage() {
 
   const { data: purchaseRaw } = await supabase
     .from("purchases")
-    .select(`courses ( id, title, slug, cover_image, weeks ( days ( tasks ( blocks ( id ) ) ) ) )`)
+    .select(`courses ( id, title, slug, cover_image, weeks ( days ( tasks ( id, blocks ( id, type ) ) ) ) )`)
     .eq("user_id", user.id);
   const purchases = (purchaseRaw as unknown as PurchaseRow[]) ?? [];
 
-  const { data: progressRaw } = await supabase
-    .from("progress")
-    .select("block_id, completed_at")
-    .eq("user_id", user.id);
+  // Progress — exercise blocks and whole parts (task_progress)
+  const [{ data: progressRaw }, { data: taskProgressRaw }] = await Promise.all([
+    supabase.from("progress").select("block_id, completed_at").eq("user_id", user.id),
+    supabase.from("task_progress").select("task_id").eq("user_id", user.id),
+  ]);
   const progressRows = (progressRaw as ProgressRow[]) ?? [];
   const completedIds = new Set(progressRows.map((p) => p.block_id));
+  const completedTaskIds = new Set(
+    ((taskProgressRaw as { task_id: string }[]) ?? []).map((p) => p.task_id)
+  );
+  // Day completion — the shared rule (lib/dayLogic.ts)
+  const dayDone = (day: PurchaseRow["courses"]["weeks"][number]["days"][number]) =>
+    isDayDone(day.tasks ?? [], completedIds, completedTaskIds);
 
   // Streak
   const uniqueDates = Array.from(
@@ -89,10 +97,7 @@ export default async function ProfilePage() {
   for (const p of purchases) {
     for (const week of p.courses.weeks ?? []) {
       for (const day of week.days) {
-        const dayBlockIds = day.tasks.flatMap((t) => t.blocks.map((b) => b.id));
-        if (dayBlockIds.length > 0 && dayBlockIds.every((id) => completedIds.has(id))) {
-          completedDaysCount++;
-        }
+        if (dayDone(day)) completedDaysCount++;
       }
     }
   }
@@ -110,10 +115,8 @@ export default async function ProfilePage() {
     const totalWeeks = (course.weeks ?? []).length;
     let currentWeek = totalWeeks;
     for (let wi = 0; wi < (course.weeks ?? []).length; wi++) {
-      const weekBlockIds = (course.weeks[wi].days ?? []).flatMap((d) =>
-        d.tasks.flatMap((t) => t.blocks.map((b) => b.id))
-      );
-      const allDone = weekBlockIds.length > 0 && weekBlockIds.every((id) => completedIds.has(id));
+      const weekDays = course.weeks[wi].days ?? [];
+      const allDone = weekDays.length > 0 && weekDays.every(dayDone);
       if (!allDone) { currentWeek = wi + 1; break; }
     }
     return { ...course, totalBlocks: allBlockIds.length, completedCount, pct, totalWeeks, currentWeek };

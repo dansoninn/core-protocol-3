@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { isDayDone, isPartDone } from "@/lib/dayLogic";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -106,12 +107,15 @@ export default async function DashboardPage() {
     coursesData = (coursesRaw as unknown as CourseRow[]) ?? [];
   }
 
-  // Progress
-  const { data: progressRaw } = await supabase
-    .from("progress")
-    .select("block_id, completed_at")
-    .eq("user_id", user.id);
+  // Progress — exercise blocks and whole parts (task_progress)
+  const [{ data: progressRaw }, { data: taskProgressRaw }] = await Promise.all([
+    supabase.from("progress").select("block_id, completed_at").eq("user_id", user.id),
+    supabase.from("task_progress").select("task_id").eq("user_id", user.id),
+  ]);
   const progressRows = (progressRaw as ProgressRow[]) ?? [];
+  const completedTaskIds = new Set(
+    ((taskProgressRaw as { task_id: string }[]) ?? []).map((p) => p.task_id)
+  );
 
   const completedIds = new Set<string>();
   const completedDates = new Set<string>();
@@ -146,14 +150,9 @@ export default async function DashboardPage() {
     };
   });
 
-  // ── isDayDone helper ──────────────────────────────────────────────────────
-  const isDayDone = (d: DayRow): boolean => {
-    const exBlocks = d.tasks.flatMap((t) =>
-      t.blocks.filter((b) => b.type === "exercise")
-    );
-    if (exBlocks.length === 0) return true;
-    return exBlocks.every((b) => completedIds.has(b.id));
-  };
+  // ── Day completion — the shared rule (lib/dayLogic.ts) ───────────────────
+  const dayDone = (d: DayRow): boolean =>
+    isDayDone(d.tasks ?? [], completedIds, completedTaskIds);
 
   // ── Per-course enrichment ─────────────────────────────────────────────────
   type EnrichedCourse = CourseRow & {
@@ -193,7 +192,7 @@ export default async function DashboardPage() {
         ? Math.round((completedCount / allBlockIds.length) * 100)
         : 0;
 
-    const firstIncompleteDay = allSortedDays.find((d) => !isDayDone(d));
+    const firstIncompleteDay = allSortedDays.find((d) => !dayDone(d));
     const currentWeekNum = firstIncompleteDay?.weekNum ?? sortedWeeks.length;
     const totalWeeks = sortedWeeks.length;
 
@@ -215,7 +214,7 @@ export default async function DashboardPage() {
 
   // ── Today / current day ───────────────────────────────────────────────────
   const currentDay = activeCourse
-    ? activeCourse.allSortedDays.find((d) => !isDayDone(d)) ??
+    ? activeCourse.allSortedDays.find((d) => !dayDone(d)) ??
       activeCourse.allSortedDays[activeCourse.allSortedDays.length - 1] ??
       null
     : null;
@@ -239,10 +238,9 @@ export default async function DashboardPage() {
   const todayProgressPct = todayExTotal > 0 ? (todayExDone / todayExTotal) * 100 : 0;
   const todayEstMin = Math.round(todayExTotal * 3);
 
-  const firstIncompleteTask = currentDay?.tasks.find((t) => {
-    const ex = t.blocks.filter((b) => b.type === "exercise");
-    return ex.length > 0 && ex.some((b) => !completedIds.has(b.id));
-  });
+  const firstIncompleteTask = currentDay?.tasks.find(
+    (t) => !isPartDone(t, completedIds, completedTaskIds)
+  );
   const ctaLabel = firstIncompleteTask
     ? `Halda áfram — ${firstIncompleteTask.name}`
     : todayExDone > 0
@@ -258,7 +256,7 @@ export default async function DashboardPage() {
     ? [...currentTrainingWeek.days].sort((a, b) => a.order_index - b.order_index)
     : [];
 
-  const weekDaysCompleted = trainingWeekDays.filter(isDayDone).length;
+  const weekDaysCompleted = trainingWeekDays.filter(dayDone).length;
   const weekDaysTotal = trainingWeekDays.length;
   const weekProgressPct =
     weekDaysTotal > 0 ? Math.round((weekDaysCompleted / weekDaysTotal) * 100) : 0;

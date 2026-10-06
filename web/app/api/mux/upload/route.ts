@@ -31,7 +31,8 @@ export async function POST() {
   }
 }
 
-// Poll for upload → asset readiness; returns playbackId once ready, or status/error info
+// Poll for upload → asset readiness; returns playbackId (and durationSec once
+// ready, whole seconds), or status/error info
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const uploadId = searchParams.get('uploadId')
@@ -59,10 +60,15 @@ export async function GET(request: Request) {
   }
 
   const playbackId = asset.playback_ids?.[0]?.id ?? null
+  const durationSec =
+    asset.status === 'ready' && typeof asset.duration === 'number'
+      ? Math.round(asset.duration)
+      : null
 
   return NextResponse.json({
     status: asset.status,
     assetId: asset.id,
     playbackId,
+    durationSec,
   })
 }

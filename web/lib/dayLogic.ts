@@ -33,28 +33,59 @@ export function computeUnlockedDayIds(
 
 // ─── Parts and progress ───────────────────────────────────────────────────────
 
-type PartLike = Pick<DbTask, "blocks">;
+/** What a completion check needs. Full DbTask rows and the light id/type rows of the course pages both fit. */
+export interface PartLike {
+  id: string;
+  blocks: readonly { id: string; type: string }[];
+}
 
-export function exerciseBlocks<T extends PartLike>(part: T): T["blocks"] {
+export function exerciseBlocks<B extends { type: string }>(part: { blocks: readonly B[] }): B[] {
   return part.blocks.filter((b) => b.type === "exercise");
 }
 
 /**
- * A part is done when all its exercise blocks are completed. Progress is
- * block-level, so a part with no exercise blocks can never be done — it is
- * left out of the "{done} / {total} liðir" count (open question for step 3b).
+ * The one completion rule (STATUS.md → Decided). A part is done when it has a
+ * task_progress row, or it has ≥1 exercise block and all of them are in
+ * progress. Every part is completable — a part without exercise blocks (e.g.
+ * a video part) is completed by its task_progress row.
  */
-export function isPartDone(part: PartLike, completed: ReadonlySet<string>): boolean {
+export function isPartDone(
+  part: PartLike,
+  completedBlockIds: ReadonlySet<string>,
+  completedTaskIds: ReadonlySet<string>
+): boolean {
+  if (completedTaskIds.has(part.id)) return true;
   const ex = exerciseBlocks(part);
-  return ex.length > 0 && ex.every((b) => completed.has(b.id));
+  return ex.length > 0 && ex.every((b) => completedBlockIds.has(b.id));
 }
 
-export function partProgress(parts: PartLike[], completed: ReadonlySet<string>) {
-  const countable = parts.filter((p) => exerciseBlocks(p).length > 0);
+/** "{done} / {total} liðir" — every part counts. */
+export function partProgress(
+  parts: readonly PartLike[],
+  completedBlockIds: ReadonlySet<string>,
+  completedTaskIds: ReadonlySet<string>
+) {
   return {
-    done: countable.filter((p) => isPartDone(p, completed)).length,
-    total: countable.length,
+    done: parts.filter((p) => isPartDone(p, completedBlockIds, completedTaskIds)).length,
+    total: parts.length,
   };
+}
+
+/**
+ * A day is done when every part is done. A day with no parts is never done —
+ * as the unlock check had it before step 3b — so it also stops every later
+ * day from unlocking.
+ * Feeds computeUnlockedDayIds on the course overview and in lib/dayAccess.ts.
+ */
+export function isDayDone(
+  parts: readonly PartLike[],
+  completedBlockIds: ReadonlySet<string>,
+  completedTaskIds: ReadonlySet<string>
+): boolean {
+  return (
+    parts.length > 0 &&
+    parts.every((p) => isPartDone(p, completedBlockIds, completedTaskIds))
+  );
 }
 
 // ─── Time ─────────────────────────────────────────────────────────────────────
@@ -70,8 +101,8 @@ export function parseSets(sets: string | null | undefined): number {
  * Null when no exercise block has a duration.
  *
  * Also null for a video part: its total time is the Mux video duration
- * (STATUS.md → Decided), which step 3b adds. Summing reference exercises
- * would show the wrong number.
+ * (tasks.video_duration_sec, STATUS.md → Decided), which the 3b part UI will
+ * show. Summing reference exercises would show the wrong number.
  */
 export function partTotalSeconds(part: Pick<DbTask, "blocks" | "video_url">): number | null {
   if (part.video_url) return null;

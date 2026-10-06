@@ -19,13 +19,16 @@ export default function DayOverview({
   view,
   parts,
   completedBlockIds,
+  completedTaskIds,
 }: {
   view: DayView;
   parts: DbTask[];
   completedBlockIds: string[];
+  completedTaskIds: string[];
 }) {
   const completed = new Set(completedBlockIds);
-  const { done, total } = partProgress(parts, completed);
+  const completedTasks = new Set(completedTaskIds);
+  const { done, total } = partProgress(parts, completed, completedTasks);
 
   return (
     <div style={{ background: "var(--bg)", minHeight: "100vh" }}>
@@ -72,7 +75,7 @@ export default function DayOverview({
                     href={`${view.dayHref}/tasks/${part.id}`}
                     index={i}
                     name={part.name}
-                    done={isPartDone(part, completed)}
+                    done={isPartDone(part, completed, completedTasks)}
                     exerciseCount={exerciseBlocks(part).length}
                     hasVideo={Boolean(part.video_url)}
                     minutesLabel={seconds !== null ? formatApproxMinutes(seconds) : null}

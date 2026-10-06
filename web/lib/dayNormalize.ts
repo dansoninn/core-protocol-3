@@ -116,6 +116,7 @@ export function normalizePart(raw: unknown): DbTask {
     rounds: int(r, "rounds", "tasks"),
     time_cap_sec: int(r, "time_cap_sec", "tasks"),
     rep_scheme: text(r, "rep_scheme", "tasks"),
+    video_duration_sec: int(r, "video_duration_sec", "tasks"),
     blocks: blocks.sort((a, b) => a.order_index - b.order_index),
   };
 }

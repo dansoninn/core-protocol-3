@@ -29,13 +29,17 @@ export default function PartClient({
   parts,
   partIndex,
   initialCompletedBlockIds,
+  completedTaskIds,
 }: {
   view: DayView;
   parts: DbTask[];
   partIndex: number;
   initialCompletedBlockIds: string[];
+  /** Parts marked done as a whole (task_progress). Read-only until the part's "Merkja lokið" lands. */
+  completedTaskIds: string[];
 }) {
   const { completedIds, saving, toggle } = useBlockProgress(view.userId, initialCompletedBlockIds);
+  const completedTasks = new Set(completedTaskIds);
   const [activeExercise, setActiveExercise] = useState<DbExercise | null>(null);
 
   const part = parts[partIndex];
@@ -43,8 +47,8 @@ export default function PartClient({
   const prevPart = partIndex > 0 ? parts[partIndex - 1] : null;
   const nextPart = partIndex < parts.length - 1 ? parts[partIndex + 1] : null;
 
-  const { done, total } = partProgress(parts, completedIds);
-  const partDone = isPartDone(part, completedIds);
+  const { done, total } = partProgress(parts, completedIds, completedTasks);
+  const partDone = isPartDone(part, completedIds, completedTasks);
   const exercises = exerciseBlocks(part);
   const seconds = partTotalSeconds(part);
   const instructions = partInstructions(part);

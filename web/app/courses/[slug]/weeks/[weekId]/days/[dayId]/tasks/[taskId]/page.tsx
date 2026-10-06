@@ -10,7 +10,7 @@ export default async function PartPage({
   params: { slug: string; weekId: string; dayId: string; taskId: string };
 }) {
   // Same checks as the day overview — a direct part URL cannot skip them.
-  const { view, completedBlockIds } = await requireDayAccess(
+  const { view, completedBlockIds, completedTaskIds } = await requireDayAccess(
     params,
     `/courses/${params.slug}/weeks/${params.weekId}/days/${params.dayId}/tasks/${params.taskId}`
   );
@@ -27,6 +27,7 @@ export default async function PartPage({
       parts={parts}
       partIndex={partIndex}
       initialCompletedBlockIds={dayBlockIds.filter((id) => completedBlockIds.has(id))}
+      completedTaskIds={parts.map((p) => p.id).filter((id) => completedTaskIds.has(id))}
     />
   );
 }

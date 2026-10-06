@@ -3,7 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import type { DbTask } from "@/types";
 import {
   computeUnlockedDayIds,
+  isDayDone,
   type DayView,
+  type PartLike,
   type StripDay,
 } from "@/lib/dayLogic";
 import { normalizePart } from "@/lib/dayNormalize";
@@ -56,13 +58,13 @@ interface CourseWeekRow {
  * Admins (profiles.role = 'admin') skip 3 and 4, so they can open any day and
  * part. 1 and 2 still apply.
  *
- * Returns the completed exercise block IDs for the whole course, so callers
- * need no second progress query.
+ * Returns the completed exercise block IDs and part (task) IDs for the whole
+ * course, so callers need no second progress query.
  */
 export async function requireDayAccess(
   params: DayRouteParams,
   returnPath: string
-): Promise<{ view: DayView; completedBlockIds: Set<string> }> {
+): Promise<{ view: DayView; completedBlockIds: Set<string>; completedTaskIds: Set<string> }> {
   const supabase = createClient();
 
   // 1. Day → week → course chain must match the URL
@@ -115,35 +117,8 @@ export async function requireDayAccess(
   }));
   const orderedDays = weeks.flatMap((w) => w.days.map((d) => ({ ...d, weekId: w.id })));
 
-  const exerciseIdsByDay = new Map(
-    orderedDays.map((d) => [
-      d.id,
-      (d.tasks ?? []).flatMap((t) =>
-        (t.blocks ?? []).filter((b) => b.type === "exercise").map((b) => b.id)
-      ),
-    ])
-  );
-  const allExerciseIds = Array.from(exerciseIdsByDay.values()).flat();
-
-  let completedBlockIds = new Set<string>();
-  if (allExerciseIds.length > 0) {
-    const { data: progress } = await supabase
-      .from("progress")
-      .select("block_id")
-      .eq("user_id", user.id)
-      .in("block_id", allExerciseIds);
-    completedBlockIds = new Set((progress ?? []).map((p) => p.block_id as string));
-  }
-
-  // A day is complete when it has exercise blocks and all of them are done
-  const completedDayIds = new Set(
-    orderedDays
-      .filter((d) => {
-        const ids = exerciseIdsByDay.get(d.id) ?? [];
-        return ids.length > 0 && ids.every((id) => completedBlockIds.has(id));
-      })
-      .map((d) => d.id)
-  );
+  const { completedBlockIds, completedTaskIds, completedDayIds } =
+    await loadCourseCompletion(user.id, orderedDays);
   const unlocked = computeUnlockedDayIds(
     orderedDays.map((d) => d.id),
     completedDayIds
@@ -175,6 +150,7 @@ export async function requireDayAccess(
 
   return {
     completedBlockIds,
+    completedTaskIds,
     view: {
       userId: user.id,
       isAdmin,
@@ -199,6 +175,54 @@ export async function requireDayAccess(
         : null,
     },
   };
+}
+
+/**
+ * The user's completed exercise blocks and parts across `days`, and which of
+ * those days are done (isDayDone). The course overview's lock display and
+ * requireDayAccess's refusal both come from here — same rows, same rule — so
+ * they cannot disagree.
+ */
+export async function loadCourseCompletion(
+  userId: string,
+  days: readonly { id: string; tasks: readonly PartLike[] | null }[]
+): Promise<{
+  completedBlockIds: Set<string>;
+  completedTaskIds: Set<string>;
+  completedDayIds: Set<string>;
+}> {
+  const supabase = createClient();
+  const parts = days.flatMap((d) => d.tasks ?? []);
+  const taskIds = parts.map((p) => p.id);
+  const exerciseIds = parts.flatMap((p) =>
+    p.blocks.filter((b) => b.type === "exercise").map((b) => b.id)
+  );
+
+  const [{ data: progress }, { data: taskProgress }] = await Promise.all([
+    exerciseIds.length > 0
+      ? supabase
+          .from("progress")
+          .select("block_id")
+          .eq("user_id", userId)
+          .in("block_id", exerciseIds)
+      : Promise.resolve({ data: [] }),
+    taskIds.length > 0
+      ? supabase
+          .from("task_progress")
+          .select("task_id")
+          .eq("user_id", userId)
+          .in("task_id", taskIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  const completedBlockIds = new Set((progress ?? []).map((p) => p.block_id as string));
+  const completedTaskIds = new Set((taskProgress ?? []).map((p) => p.task_id as string));
+  const completedDayIds = new Set(
+    days
+      .filter((d) => isDayDone(d.tasks ?? [], completedBlockIds, completedTaskIds))
+      .map((d) => d.id)
+  );
+  return { completedBlockIds, completedTaskIds, completedDayIds };
 }
 
 /**

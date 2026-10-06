@@ -59,6 +59,9 @@ export interface DbTask {
   rounds: number | null;
   time_cap_sec: number | null; // AMRAP duration, for_time/chipper cap
   rep_scheme: string | null; // ladder only, e.g. "2-4-6-8-10" or "21-15-9"
+  // Step 3b (migration-task-progress.sql). Mux duration in whole seconds —
+  // a video part's total time. Null when there is no video or it predates the backfill.
+  video_duration_sec: number | null;
   blocks: DbBlock[];
 }
 

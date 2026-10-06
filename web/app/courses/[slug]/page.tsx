@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { DbCourse, DbWeek } from "@/types";
+import { loadCourseCompletion } from "@/lib/dayAccess";
+import { partProgress } from "@/lib/dayLogic";
 import CourseClient from "./CourseClient";
 
 // Raw shape returned by the nested select
@@ -96,61 +98,34 @@ export default async function CoursePage({
     isAdmin = profile?.role === "admin";
 
     if (purchased) {
-      // Collect all block IDs in this course
-      const allBlockIds = rawWeeks.flatMap((w) =>
-        (w.days ?? []).flatMap((d) =>
-          (d.tasks ?? []).flatMap((t) => (t.blocks ?? []).map((b) => b.id))
-        )
+      const allDays = rawWeeks.flatMap((w) => w.days ?? []);
+      const allBlockIds = allDays.flatMap((d) =>
+        (d.tasks ?? []).flatMap((t) => (t.blocks ?? []).map((b) => b.id))
       );
       blocksTotal = allBlockIds.length;
 
-      if (allBlockIds.length > 0) {
-        const { data: progress } = await supabase
-          .from("progress")
-          .select("block_id")
-          .eq("user_id", user.id)
-          .in("block_id", allBlockIds);
+      // Same loader and rule as the server-side day check (lib/dayAccess.ts),
+      // so the lock display below can never disagree with it.
+      const completion = await loadCourseCompletion(user.id, allDays);
+      const { completedBlockIds, completedTaskIds } = completion;
+      blocksCompleted = allBlockIds.filter((id) => completedBlockIds.has(id)).length;
+      completedDayIds = Array.from(completion.completedDayIds);
 
-        const completedSet = new Set(
-          (progress ?? []).map((p) => p.block_id as string)
+      // Per-day progress: the ring and % count exercise blocks; "verkefni"
+      // counts every part, done by the shared rule (lib/dayLogic.ts).
+      allDays.forEach((d) => {
+        const tasks = d.tasks ?? [];
+        const exBlocks = tasks.flatMap((t) =>
+          (t.blocks ?? []).filter((b) => b.type === "exercise")
         );
-        blocksCompleted = completedSet.size;
-
-        // Per-day progress (exercise blocks only)
-        rawWeeks.flatMap((w) => w.days ?? []).forEach((d) => {
-          let dayBlocksTotal = 0;
-          let dayBlocksComplete = 0;
-          let tasksWithEx = 0;
-          let tasksComplete = 0;
-          (d.tasks ?? []).forEach((t) => {
-            const exBlocks = (t.blocks ?? []).filter(
-              (b) => b.type === "exercise"
-            );
-            if (exBlocks.length > 0) {
-              tasksWithEx++;
-              const done = exBlocks.filter((b) => completedSet.has(b.id)).length;
-              dayBlocksTotal += exBlocks.length;
-              dayBlocksComplete += done;
-              if (done === exBlocks.length) tasksComplete++;
-            }
-          });
-          dayProgress[d.id] = {
-            blocksTotal: dayBlocksTotal,
-            blocksComplete: dayBlocksComplete,
-            tasksTotal: tasksWithEx,
-            tasksComplete,
-          };
-        });
-
-        // A day is "complete" when all its exercise blocks are done
-        completedDayIds = rawWeeks
-          .flatMap((w) => w.days ?? [])
-          .filter((d) => {
-            const p = dayProgress[d.id];
-            return p && p.blocksTotal > 0 && p.blocksComplete === p.blocksTotal;
-          })
-          .map((d) => d.id);
-      }
+        const parts = partProgress(tasks, completedBlockIds, completedTaskIds);
+        dayProgress[d.id] = {
+          blocksTotal: exBlocks.length,
+          blocksComplete: exBlocks.filter((b) => completedBlockIds.has(b.id)).length,
+          tasksTotal: parts.total,
+          tasksComplete: parts.done,
+        };
+      });
     }
   }
 

@@ -4,14 +4,26 @@ Live state only — what is done, open, unverified, decided.
 Durable reference (stack, schema, routes, conventions) lives in CLAUDE.md.
 **Update this file before finishing work.**
 
-Last updated: 2026-10-05
+Last updated: 2026-10-06
 
 ## Done
 
-Recent commits:
+Recent commits, newest first. The day view step 3b.1 commit (task-level
+completion + video duration) is the one after `086ce9a`; a commit cannot list
+its own hash.
 
 | Commit | What changed |
 |---|---|
+| `086ce9a` | Docs: CLAUDE.md schema matches production after the sets/reps change |
+| `13a0511` | `web/migration-sets-reps-text.sql` — `blocks.sets` / `reps` INTEGER → TEXT. **Run by Daniel, confirmed live** |
+| `de6f392` | Day-view rows normalised once at the data boundary (`lib/dayNormalize.ts`) — fixed the production `.trim()` crash |
+| `b09a0a8` | Admin day-access bypass; "Myndband ✓" counts Mux only; light-theme accent is gold `#825A00` |
+| `12201c9` | Day view v2 step 3a — day overview + one page per part; locked days refused server-side (`lib/dayAccess.ts`) |
+| `d024d03` | Course builder flags exercise blocks whose exercise has no explanation video |
+| `6363d1c` | Day view v2 step 2 — admin fields: task format (`TaskSettings`) and block prescription (`BlockPrescription`) |
+| `29f3102` | Day view v2 step 1 — `web/migration-day-view-v2.sql` (task formats, block prescription). Live |
+| `8bbd5df` | Stopped tracking the embedded `CoreProtocol/` Expo repo (gitlink); folder untouched on disk |
+| `d3cf5d2`…`e73c21c` | Docs only: STATUS.md created, corrected; hydration claims dropped after the production measurement |
 | `8577061` | Middleware redirects now carry the cleared Supabase auth cookie, so a stale refresh token no longer survives and loops (`web/middleware.ts`) |
 | `96fc0ac` | Admin view switcher — `ViewSwitcher.tsx`: banner on user pages, control in admin sidebar; adds the `--accent-line` token. **Verified:** banner in-browser (stacking, light/dark, mobile); `Skoða notendasýn` in `/admin` confirmed rendering and working by Daniel |
 | `1566357` | Deterministic ISK price formatting — `web/lib/formatPrice.ts` replaces `toLocaleString` at 4 price call sites |
@@ -53,11 +65,42 @@ Shipped earlier:
   done, **pending Daniel's check in /admin**. **Step 3a done (day overview +
   one page per part), pending Daniel's check** — logic tested and layout checked
   at 375px with fixture data only; never seen with real data or a real session.
-- **Step 3b** — video part layout, format stat tiles, single "Merkja lokið" for
-  video parts, superset/complex grouping (A1/A2).
-- **A part with zero exercise blocks cannot be marked done** (progress is
-  block-level). It is left out of the "{done} / {total} liðir" count for now.
-  Decide in 3b.
+- **`web/migration-task-progress.sql` — pending, Daniel runs it.** Not live
+  until he confirms. Adds `task_progress` (RLS: select/insert/delete own rows)
+  and `tasks.video_duration_sec`. **Run it before the step 3b.1 commit
+  deploys.** Until then:
+  - the admin task video upload fails — its update names `video_duration_sec`;
+  - "Duplicate day" silently drops every part — its task insert names
+    `video_duration_sec` and the loop skips failed inserts;
+  - `task_progress` reads fail and count as empty — completion falls back to
+    exercise blocks, so the user pages keep working.
+  Once live, add `task_progress` and `tasks.video_duration_sec` to the
+  CLAUDE.md schema.
+- **Step 3b** — sub-step 1/4 done (schema, one completion rule, duration
+  capture). Remaining: video part layout (showing `video_duration_sec`),
+  format stat tiles, single "Merkja lokið" for video parts, superset/complex
+  grouping (A1/A2).
+- **Until "Merkja lokið" ships, a part with no exercise blocks cannot be
+  completed** — the rule counts it, but nothing writes `task_progress` yet. A
+  day containing one (an untagged video part, a text-only part) is no longer
+  done when its exercises are, so the next day locks — including for users who
+  finished that day under the old rule. Check before deploying 3b.1 alone:
+  `SELECT t.id, t.name, d.title FROM tasks t JOIN days d ON d.id = t.day_id
+  WHERE NOT EXISTS (SELECT 1 FROM blocks b WHERE b.task_id = t.id AND b.type = 'exercise');`
+  Zero rows → safe.
+- **Backfill `tasks.video_duration_sec`** — `web/scripts/backfill-video-duration.mjs`
+  (dry run by default, `--apply` writes). Not run. Blocked: it needs a valid
+  service key (see below) and `MUX_TOKEN_ID` / `MUX_TOKEN_SECRET`, which are not
+  in `web/.env.local` (only on Vercel). It refuses the current 26-character key.
+- **Progress metrics still count blocks, not parts.** The step 3b.1 rule covers
+  day and part completion, unlock and "{done} / {total}" counts. These still read
+  `progress` only: the course overview ring and %, the course progress %, the
+  dashboard "X / Y lokið" and estimate, the profile %, streak, calendar dots,
+  the "ÆFINGAR" count, and admin "active today". They ignore `task_progress`
+  and will be wrong once video parts are completed as a whole. Also predating
+  3b: the course overview and profile percentages count text blocks in the
+  denominator (they can never reach 100%), and the profile's "current week"
+  walks weeks in unsorted database order.
 - **Admin: visible autosave status** ("Vistar…" / "Vistað ✓") per field, and a
   warning before leaving with an unsaved or failed edit.
 - **Admin: quick-tag field on parts with a video.** A persistent exercise-bank
@@ -72,12 +115,37 @@ Shipped earlier:
 
 ## Unverified
 
+- **Step 3b.1 signed-in paths.** Build passes; the rule is checked with
+  assertions; signed-out routes load in dev without errors. Not exercised
+  (no session, migration not live): the course overview, day and part pages,
+  dashboard and profile with real progress; `task_progress` reads against the
+  real table; duration capture on a real Mux upload; the backfill on real data.
+
 - **The retryable/network branch in `middleware.ts`.** Never observed to fire:
   auth-js logs the retryable fetch error internally and surfaces
   `AuthSessionMissingError` to the caller instead. Kept as defensive code; see
   the comment above it.
 
 ## Decided
+
+- **One completion rule (step 3b).** A part is done when it has a
+  `task_progress` row, or it has ≥1 exercise block and all of them are in
+  `progress`. Every part is completable and counts in "{done} / {total} liðir"
+  (replaces the old "zero exercise blocks are uncountable" exclusion). A day is
+  done when every part is done. One implementation: `isPartDone` /
+  `partProgress` / `isDayDone` in `lib/dayLogic.ts`, used by the day pages,
+  course overview, dashboard and profile. The course overview and
+  `requireDayAccess` both load completion through `loadCourseCompletion`
+  (`lib/dayAccess.ts`), so unlock display and server-side refusal read the same
+  rows and cannot disagree.
+- **A day with no parts is never done**, so it stops every later day from
+  unlocking. Kept from before 3b, where the unlock check and course overview
+  already behaved this way; the dashboard used to treat such a day as done and
+  now follows the shared rule.
+- **Video part duration** is `tasks.video_duration_sec` (Mux duration, whole
+  seconds). The admin upload waits for the asset to be `ready` and saves URL and
+  duration in one update. If Mux is still preparing after the 60-second poll,
+  the URL is saved without a duration, for the backfill to fill.
 
 - The view switcher shows an admin the user UI **as themselves**. No
   impersonation of another user — that would need a service-role key and an RLS
