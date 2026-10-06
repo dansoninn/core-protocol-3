@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { DbCourse, DbWeek } from "@/types";
 import { loadCourseCompletion } from "@/lib/dayAccess";
-import { partProgress } from "@/lib/dayLogic";
+import { partsProgress } from "@/lib/dayLogic";
 import CourseClient from "./CourseClient";
 
 // Raw shape returned by the nested select
@@ -23,10 +23,8 @@ interface WeekRow {
 }
 
 interface DayProgressData {
-  blocksComplete: number;
-  blocksTotal: number;
-  tasksComplete: number;
-  tasksTotal: number;
+  partsComplete: number;
+  partsTotal: number;
 }
 
 export default async function CoursePage({
@@ -76,8 +74,8 @@ export default async function CoursePage({
 
   let purchased = false;
   let isAdmin = false;
-  let blocksCompleted = 0;
-  let blocksTotal = 0;
+  let partsCompleted = 0;
+  let partsTotal = 0;
   let completedDayIds: string[] = [];
   const dayProgress: Record<string, DayProgressData> = {};
 
@@ -99,32 +97,21 @@ export default async function CoursePage({
 
     if (purchased) {
       const allDays = rawWeeks.flatMap((w) => w.days ?? []);
-      const allBlockIds = allDays.flatMap((d) =>
-        (d.tasks ?? []).flatMap((t) => (t.blocks ?? []).map((b) => b.id))
-      );
-      blocksTotal = allBlockIds.length;
 
       // Same loader and rule as the server-side day check (lib/dayAccess.ts),
       // so the lock display below can never disagree with it.
       const completion = await loadCourseCompletion(user.id, allDays);
       const { completedBlockIds, completedTaskIds } = completion;
-      blocksCompleted = allBlockIds.filter((id) => completedBlockIds.has(id)).length;
+      const overall = partsProgress(allDays, completedBlockIds, completedTaskIds);
+      partsCompleted = overall.done;
+      partsTotal = overall.total;
       completedDayIds = Array.from(completion.completedDayIds);
 
-      // Per-day progress: the ring and % count exercise blocks; "verkefni"
-      // counts every part, done by the shared rule (lib/dayLogic.ts).
+      // Per-day progress — parts, by the shared rule (lib/dayLogic.ts), the
+      // same count as the day view's "{done} / {total} liðir".
       allDays.forEach((d) => {
-        const tasks = d.tasks ?? [];
-        const exBlocks = tasks.flatMap((t) =>
-          (t.blocks ?? []).filter((b) => b.type === "exercise")
-        );
-        const parts = partProgress(tasks, completedBlockIds, completedTaskIds);
-        dayProgress[d.id] = {
-          blocksTotal: exBlocks.length,
-          blocksComplete: exBlocks.filter((b) => completedBlockIds.has(b.id)).length,
-          tasksTotal: parts.total,
-          tasksComplete: parts.done,
-        };
+        const parts = partsProgress([d], completedBlockIds, completedTaskIds);
+        dayProgress[d.id] = { partsTotal: parts.total, partsComplete: parts.done };
       });
     }
   }
@@ -135,8 +122,8 @@ export default async function CoursePage({
       weeks={weeks}
       purchased={purchased}
       completedDayIds={completedDayIds}
-      blocksCompleted={blocksCompleted}
-      blocksTotal={blocksTotal}
+      partsCompleted={partsCompleted}
+      partsTotal={partsTotal}
       userId={user?.id ?? null}
       dayProgress={dayProgress}
       isAdmin={isAdmin}

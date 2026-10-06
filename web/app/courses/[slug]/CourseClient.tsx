@@ -8,11 +8,10 @@ import type { DbCourse, DbWeek } from "@/types";
 import { formatPrice } from "@/lib/formatPrice";
 import { computeUnlockedDayIds } from "@/lib/dayLogic";
 
+/** Part-level, by the shared rule (lib/dayLogic.ts → partsProgress). */
 interface DayProgressData {
-  blocksComplete: number;
-  blocksTotal: number;
-  tasksComplete: number;
-  tasksTotal: number;
+  partsComplete: number;
+  partsTotal: number;
 }
 
 interface Props {
@@ -20,8 +19,8 @@ interface Props {
   weeks: DbWeek[];
   purchased: boolean;
   completedDayIds: string[];
-  blocksCompleted: number;
-  blocksTotal: number;
+  partsCompleted: number;
+  partsTotal: number;
   userId: string | null;
   dayProgress: Record<string, DayProgressData>;
   /** Admins can open locked days; they still look locked, so the admin sees what users see. */
@@ -31,13 +30,13 @@ interface Props {
 // ── Status ring ───────────────────────────────────────────────────────────────
 
 function DayRing({
-  blocksComplete,
-  blocksTotal,
+  partsComplete,
+  partsTotal,
   isComplete,
   locked,
 }: {
-  blocksComplete: number;
-  blocksTotal: number;
+  partsComplete: number;
+  partsTotal: number;
   isComplete: boolean;
   locked: boolean;
 }) {
@@ -61,10 +60,10 @@ function DayRing({
     );
   }
 
-  if (blocksTotal > 0 && blocksComplete > 0) {
+  if (partsTotal > 0 && partsComplete > 0) {
     const r = 8;
     const circ = 2 * Math.PI * r;
-    const dash = (blocksComplete / blocksTotal) * circ;
+    const dash = (partsComplete / partsTotal) * circ;
     return (
       <svg width="20" height="20" viewBox="0 0 20 20"
         style={{ transform: "rotate(-90deg)", flexShrink: 0 }} aria-hidden>
@@ -92,8 +91,8 @@ export default function CourseClient({
   weeks,
   purchased: initialPurchased,
   completedDayIds,
-  blocksCompleted,
-  blocksTotal,
+  partsCompleted,
+  partsTotal,
   userId,
   dayProgress,
   isAdmin,
@@ -125,8 +124,8 @@ export default function CourseClient({
   );
   const router = useRouter();
 
-  const progressPct = blocksTotal > 0
-    ? Math.round((blocksCompleted / blocksTotal) * 100)
+  const progressPct = partsTotal > 0
+    ? Math.round((partsCompleted / partsTotal) * 100)
     : 0;
   const totalDays = allSortedDays.length;
   const completedDaysCount = completedDayIds.length;
@@ -234,7 +233,7 @@ export default function CourseClient({
           </h1>
 
           {/* Instructor + category */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: purchased && blocksTotal > 0 ? 16 : 0, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: purchased && partsTotal > 0 ? 16 : 0, flexWrap: "wrap" }}>
             {course.instructor && (
               <span style={{ fontSize: 12, color: "var(--muted2)" }}>
                 {course.instructor}
@@ -253,12 +252,12 @@ export default function CourseClient({
           </div>
 
           {/* Progress bar (purchased only) */}
-          {purchased && blocksTotal > 0 && (
+          {purchased && partsTotal > 0 && (
             <div>
               <p style={{ fontSize: 12, color: "var(--muted2)", marginBottom: 6 }}>
                 {completedDaysCount} af {totalDays} dögum · {progressPct}%
               </p>
-              <div style={{ height: 4, background: "rgba(255,255,255,0.1)", borderRadius: 999, overflow: "hidden" }}>
+              <div style={{ height: 4, background: "var(--surface3)", borderRadius: 999, overflow: "hidden" }}>
                 <div style={{
                   height: "100%", width: `${progressPct}%`,
                   background: "linear-gradient(90deg, var(--accent), var(--success))",
@@ -390,8 +389,8 @@ export default function CourseClient({
                           const isUnlocked = purchased && unlockedDayIds.has(day.id);
                           const isLocked = !purchased || !unlockedDayIds.has(day.id);
                           const isCurrent = day.id === firstIncompleteDayId;
-                          const pct = dp && dp.blocksTotal > 0
-                            ? Math.round((dp.blocksComplete / dp.blocksTotal) * 100)
+                          const pct = dp && dp.partsTotal > 0
+                            ? Math.round((dp.partsComplete / dp.partsTotal) * 100)
                             : 0;
 
                           const rowStyle: React.CSSProperties = {
@@ -411,8 +410,8 @@ export default function CourseClient({
                           const rowContent = (
                             <>
                               <DayRing
-                                blocksComplete={dp?.blocksComplete ?? 0}
-                                blocksTotal={dp?.blocksTotal ?? 0}
+                                partsComplete={dp?.partsComplete ?? 0}
+                                partsTotal={dp?.partsTotal ?? 0}
                                 isComplete={isComplete}
                                 locked={isLocked}
                               />
@@ -422,13 +421,13 @@ export default function CourseClient({
                                   fontSize: 13, fontWeight: 600,
                                   color: "var(--text)",
                                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                                  marginBottom: dp && dp.tasksTotal > 0 ? 2 : 0,
+                                  marginBottom: dp && dp.partsTotal > 0 ? 2 : 0,
                                 }}>
                                   {day.title}
                                 </p>
-                                {dp && dp.tasksTotal > 0 && (
+                                {dp && dp.partsTotal > 0 && (
                                   <p style={{ fontSize: 11, color: "var(--muted2)" }}>
-                                    {dp.tasksComplete}/{dp.tasksTotal} verkefni
+                                    {dp.partsComplete}/{dp.partsTotal} liðir
                                   </p>
                                 )}
                               </div>

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { isDayDone, isPartDone } from "@/lib/dayLogic";
+import { isDayDone, isPartDone, partsProgress } from "@/lib/dayLogic";
 import { formatWeekdayDate } from "@/lib/formatDate";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -107,12 +107,11 @@ export default async function DashboardPage() {
   // Progress — exercise blocks and whole parts (task_progress)
   const [{ data: progressRaw }, { data: taskProgressRaw }] = await Promise.all([
     supabase.from("progress").select("block_id, completed_at").eq("user_id", user.id),
-    supabase.from("task_progress").select("task_id").eq("user_id", user.id),
+    supabase.from("task_progress").select("task_id, completed_at").eq("user_id", user.id),
   ]);
   const progressRows = (progressRaw as ProgressRow[]) ?? [];
-  const completedTaskIds = new Set(
-    ((taskProgressRaw as { task_id: string }[]) ?? []).map((p) => p.task_id)
-  );
+  const taskProgressRows = (taskProgressRaw as { task_id: string; completed_at: string | null }[]) ?? [];
+  const completedTaskIds = new Set(taskProgressRows.map((p) => p.task_id));
 
   const completedIds = new Set<string>();
   const completedDates = new Set<string>();
@@ -121,6 +120,10 @@ export default async function DashboardPage() {
     if (p.completed_at) {
       completedDates.add(new Date(p.completed_at).toISOString().slice(0, 10));
     }
+  }
+  // A part completed as a whole is training done that day, too
+  for (const p of taskProgressRows) {
+    if (p.completed_at) completedDates.add(new Date(p.completed_at).toISOString().slice(0, 10));
   }
 
   // ── Streak ────────────────────────────────────────────────────────────────
@@ -153,7 +156,6 @@ export default async function DashboardPage() {
 
   // ── Per-course enrichment ─────────────────────────────────────────────────
   type EnrichedCourse = CourseRow & {
-    allBlockIds: string[];
     completedCount: number;
     pct: number;
     currentWeekNum: number;
@@ -179,15 +181,8 @@ export default async function DashboardPage() {
         }))
     );
 
-    const allBlockIds = allSortedDays.flatMap((d) =>
-      d.tasks.flatMap((t) => t.blocks.map((b) => b.id))
-    );
-
-    const completedCount = allBlockIds.filter((id) => completedIds.has(id)).length;
-    const pct =
-      allBlockIds.length > 0
-        ? Math.round((completedCount / allBlockIds.length) * 100)
-        : 0;
+    // Parts, not blocks — the shared rule (lib/dayLogic.ts → partsProgress)
+    const { done: completedCount, pct } = partsProgress(allSortedDays, completedIds, completedTaskIds);
 
     const firstIncompleteDay = allSortedDays.find((d) => !dayDone(d));
     const currentWeekNum = firstIncompleteDay?.weekNum ?? sortedWeeks.length;
@@ -196,7 +191,6 @@ export default async function DashboardPage() {
     return {
       ...course,
       weeks: sortedWeeks,
-      allBlockIds,
       completedCount,
       pct,
       currentWeekNum,
@@ -226,14 +220,17 @@ export default async function DashboardPage() {
       ? activeCourse!.allSortedDays[currentDayIdx + 1]
       : null;
 
-  // Today's exercise counts
-  const todayExBlocks = currentDay
-    ? currentDay.tasks.flatMap((t) => t.blocks.filter((b) => b.type === "exercise"))
-    : [];
-  const todayExTotal = todayExBlocks.length;
-  const todayExDone = todayExBlocks.filter((b) => completedIds.has(b.id)).length;
-  const todayProgressPct = todayExTotal > 0 ? (todayExDone / todayExTotal) * 100 : 0;
-  const todayEstMin = Math.round(todayExTotal * 3);
+  // Today's parts (the same count as the day view's "{done} / {total} liðir")
+  const todayParts = currentDay
+    ? partsProgress([currentDay], completedIds, completedTaskIds)
+    : { done: 0, total: 0, pct: 0 };
+  const todayExTotal = todayParts.total;
+  const todayExDone = todayParts.done;
+  const todayProgressPct = todayParts.pct;
+  // Rough estimate: ~3 min per exercise block
+  const todayEstMin = currentDay
+    ? Math.round(currentDay.tasks.flatMap((t) => t.blocks.filter((b) => b.type === "exercise")).length * 3)
+    : 0;
 
   const firstIncompleteTask = currentDay?.tasks.find(
     (t) => !isPartDone(t, completedIds, completedTaskIds)
@@ -259,8 +256,9 @@ export default async function DashboardPage() {
     weekDaysTotal > 0 ? Math.round((weekDaysCompleted / weekDaysTotal) * 100) : 0;
 
   // Tomorrow
-  const tomorrowExTotal = tomorrowDay
-    ? tomorrowDay.tasks.flatMap((t) => t.blocks.filter((b) => b.type === "exercise")).length
+  const tomorrowExTotal = tomorrowDay ? tomorrowDay.tasks.length : 0;
+  const tomorrowEstMin = tomorrowDay
+    ? Math.round(tomorrowDay.tasks.flatMap((t) => t.blocks.filter((b) => b.type === "exercise")).length * 3)
     : 0;
 
   // Browse courses if not enrolled
@@ -490,7 +488,7 @@ export default async function DashboardPage() {
 
                 {todayExTotal > 0 && (
                   <p style={{ fontSize: 12, color: "var(--muted2)", marginBottom: 16 }}>
-                    {todayExTotal} verkefni{todayEstMin > 0 ? ` · ~${todayEstMin} mín` : ""}
+                    {todayExTotal} {todayExTotal === 1 ? "liður" : "liðir"}{todayEstMin > 0 ? ` · ~${todayEstMin} mín` : ""}
                   </p>
                 )}
 
@@ -513,7 +511,7 @@ export default async function DashboardPage() {
                       />
                     </svg>
                     <div style={{ flex: 1 }}>
-                      <div style={{ height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 999, overflow: "hidden", marginBottom: 5 }}>
+                      <div style={{ height: 4, background: "var(--surface3)", borderRadius: 999, overflow: "hidden", marginBottom: 5 }}>
                         <div
                           style={{
                             height: "100%",
@@ -525,7 +523,7 @@ export default async function DashboardPage() {
                         />
                       </div>
                       <span style={{ fontSize: 11, color: "var(--muted2)" }}>
-                        {todayExDone} / {todayExTotal} lokið
+                        {todayExDone} / {todayExTotal} liðir
                       </span>
                     </div>
                   </div>
@@ -584,7 +582,7 @@ export default async function DashboardPage() {
                   </p>
                   {tomorrowExTotal > 0 && (
                     <p style={{ fontSize: 11, color: "var(--muted2)" }}>
-                      {tomorrowExTotal} verkefni · ~{Math.round(tomorrowExTotal * 3)} mín
+                      {tomorrowExTotal} {tomorrowExTotal === 1 ? "liður" : "liðir"}{tomorrowEstMin > 0 ? ` · ~${tomorrowEstMin} mín` : ""}
                     </p>
                   )}
                 </div>

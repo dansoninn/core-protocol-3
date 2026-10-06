@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { isDayDone } from "@/lib/dayLogic";
+import { isDayDone, partsProgress } from "@/lib/dayLogic";
 import ProfileSignOut from "./ProfileSignOut";
 import ProfileThemeToggle from "./ProfileThemeToggle";
 import { formatMonthYear } from "@/lib/formatDate";
@@ -20,7 +20,10 @@ interface PurchaseRow {
     title: string;
     slug: string;
     cover_image: string | null;
-    weeks: { days: { tasks: { id: string; blocks: { id: string; type: string }[] }[] }[] }[];
+    weeks: {
+      order_index: number;
+      days: { order_index: number; tasks: { id: string; blocks: { id: string; type: string }[] }[] }[];
+    }[];
   };
 }
 
@@ -44,30 +47,29 @@ export default async function ProfilePage() {
 
   const { data: purchaseRaw } = await supabase
     .from("purchases")
-    .select(`courses ( id, title, slug, cover_image, weeks ( days ( tasks ( id, blocks ( id, type ) ) ) ) )`)
+    .select(`courses ( id, title, slug, cover_image, weeks ( order_index, days ( order_index, tasks ( id, blocks ( id, type ) ) ) ) )`)
     .eq("user_id", user.id);
   const purchases = (purchaseRaw as unknown as PurchaseRow[]) ?? [];
 
   // Progress — exercise blocks and whole parts (task_progress)
   const [{ data: progressRaw }, { data: taskProgressRaw }] = await Promise.all([
     supabase.from("progress").select("block_id, completed_at").eq("user_id", user.id),
-    supabase.from("task_progress").select("task_id").eq("user_id", user.id),
+    supabase.from("task_progress").select("task_id, completed_at").eq("user_id", user.id),
   ]);
   const progressRows = (progressRaw as ProgressRow[]) ?? [];
   const completedIds = new Set(progressRows.map((p) => p.block_id));
-  const completedTaskIds = new Set(
-    ((taskProgressRaw as { task_id: string }[]) ?? []).map((p) => p.task_id)
-  );
+  const taskProgressRows = (taskProgressRaw as { task_id: string; completed_at: string | null }[]) ?? [];
+  const completedTaskIds = new Set(taskProgressRows.map((p) => p.task_id));
   // Day completion — the shared rule (lib/dayLogic.ts)
   const dayDone = (day: PurchaseRow["courses"]["weeks"][number]["days"][number]) =>
     isDayDone(day.tasks ?? [], completedIds, completedTaskIds);
 
-  // Streak
+  // Streak — a day with any completed block or whole part counts
   const uniqueDates = Array.from(
     new Set(
-      progressRows
+      [...progressRows, ...taskProgressRows]
         .filter((p) => p.completed_at)
-        .map((p) => new Date(p.completed_at).toISOString().slice(0, 10))
+        .map((p) => new Date(p.completed_at as string).toISOString().slice(0, 10))
     )
   ).sort((a, b) => b.localeCompare(a));
 
@@ -105,22 +107,23 @@ export default async function ProfilePage() {
 
   const enrolledCourses = purchases.map((p) => {
     const course = p.courses;
-    const allBlockIds = (course.weeks ?? []).flatMap((w) =>
-      w.days.flatMap((d) => d.tasks.flatMap((t) => t.blocks.map((b) => b.id)))
+    // Course order — the select returns weeks and days unsorted
+    const weeks = [...(course.weeks ?? [])].sort((a, b) => a.order_index - b.order_index);
+    const days = weeks.flatMap((w) => w.days ?? []);
+    // Parts, not blocks — the shared rule (lib/dayLogic.ts → partsProgress)
+    const { done: completedCount, total: totalParts, pct } = partsProgress(
+      days,
+      completedIds,
+      completedTaskIds
     );
-    const completedCount = allBlockIds.filter((id) => completedIds.has(id)).length;
-    const pct =
-      allBlockIds.length > 0
-        ? Math.round((completedCount / allBlockIds.length) * 100)
-        : 0;
-    const totalWeeks = (course.weeks ?? []).length;
+    const totalWeeks = weeks.length;
     let currentWeek = totalWeeks;
-    for (let wi = 0; wi < (course.weeks ?? []).length; wi++) {
-      const weekDays = course.weeks[wi].days ?? [];
+    for (let wi = 0; wi < weeks.length; wi++) {
+      const weekDays = weeks[wi].days ?? [];
       const allDone = weekDays.length > 0 && weekDays.every(dayDone);
       if (!allDone) { currentWeek = wi + 1; break; }
     }
-    return { ...course, totalBlocks: allBlockIds.length, completedCount, pct, totalWeeks, currentWeek };
+    return { ...course, totalParts, completedCount, pct, totalWeeks, currentWeek };
   });
 
   const fullName =
@@ -400,7 +403,7 @@ export default async function ProfilePage() {
                     <p style={{ fontSize: 12, color: "var(--muted2)", marginBottom: 8 }}>
                       Vika {course.currentWeek} af {course.totalWeeks}
                     </p>
-                    {course.totalBlocks > 0 && (
+                    {course.totalParts > 0 && (
                       <>
                         <div
                           style={{

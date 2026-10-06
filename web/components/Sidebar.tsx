@@ -126,14 +126,14 @@ export default function Sidebar({ userEmail, userFullName: userFullNameProp, isA
       style={{
         width: 240,
         backgroundColor: "#0d0f12",
-        borderRight: "1px solid rgba(255,255,255,0.06)",
+        borderRight: "1px solid var(--border)",
       }}
     >
       {/* Logo */}
       <div
         style={{
           padding: "24px 20px 16px",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          borderBottom: "1px solid var(--border)",
           flexShrink: 0,
         }}
       >
@@ -221,7 +221,7 @@ export default function Sidebar({ userEmail, userFullName: userFullNameProp, isA
         <div
           style={{
             padding: 12,
-            borderTop: "1px solid rgba(255,255,255,0.06)",
+            borderTop: "1px solid var(--border)",
             flexShrink: 0,
           }}
         >
@@ -239,8 +239,8 @@ export default function Sidebar({ userEmail, userFullName: userFullNameProp, isA
                 width: 32,
                 height: 32,
                 borderRadius: "50%",
-                background: "rgba(255,255,255,0.1)",
-                color: "#fff",
+                background: "var(--surface3)",
+                color: "var(--text)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",

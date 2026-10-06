@@ -88,6 +88,23 @@ export function isDayDone(
   );
 }
 
+/**
+ * Part-level progress across many days — what every "% / X af Y" metric
+ * counts (course %, dashboard, profile). Parts, not blocks: a video part
+ * completed as a whole counts once, and text blocks never sit in a
+ * denominator they cannot leave.
+ */
+export function partsProgress(
+  days: readonly { tasks: readonly PartLike[] | null }[],
+  completedBlockIds: ReadonlySet<string>,
+  completedTaskIds: ReadonlySet<string>
+): { done: number; total: number; pct: number } {
+  const parts = days.flatMap((d) => d.tasks ?? []);
+  const done = parts.filter((p) => isPartDone(p, completedBlockIds, completedTaskIds)).length;
+  const total = parts.length;
+  return { done, total, pct: total > 0 ? Math.round((done / total) * 100) : 0 };
+}
+
 // ─── Time ─────────────────────────────────────────────────────────────────────
 
 /** max(1, sets) — sets is free text ("3", "3-4"), so take the leading number. */
