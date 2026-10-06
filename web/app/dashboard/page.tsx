@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { isDayDone, isPartDone } from "@/lib/dayLogic";
+import { formatWeekdayDate } from "@/lib/formatDate";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,11 +28,7 @@ const DAY_ABBREVS = ["MÁN", "ÞRI", "MIÐ", "FIM", "FÖS", "LAU", "SUN"];
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function islandicDate(date: Date): string {
-  return date.toLocaleDateString("is-IS", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  }).replace(/^\w/, (c) => c.toUpperCase());
+  return formatWeekdayDate(date);
 }
 
 function computeStreak(completedDates: Set<string>): number {
@@ -335,8 +332,8 @@ export default async function DashboardPage() {
                 width: 44,
                 height: 44,
                 borderRadius: "50%",
-                background: "rgba(240,192,112,0.1)",
-                border: "1px solid rgba(240,192,112,0.2)",
+                background: "var(--accent-dim)",
+                border: "1px solid var(--accent-line)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -389,7 +386,7 @@ export default async function DashboardPage() {
                     border: dot.isFuture
                       ? "1px solid var(--border)"
                       : dot.isToday
-                      ? "2px solid rgba(240,192,112,0.3)"
+                      ? "2px solid var(--accent-line)"
                       : "none",
                     boxSizing: "border-box",
                   }}
@@ -506,7 +503,7 @@ export default async function DashboardPage() {
                       viewBox="0 0 38 38"
                       style={{ flexShrink: 0, transform: "rotate(-90deg)" }}
                     >
-                      <circle cx="19" cy="19" r="15" fill="none" stroke="rgba(240,192,112,0.15)" strokeWidth="3" />
+                      <circle cx="19" cy="19" r="15" fill="none" stroke="var(--surface3)" strokeWidth="3" />
                       <circle
                         cx="19" cy="19" r="15" fill="none"
                         stroke="var(--accent)" strokeWidth="3"

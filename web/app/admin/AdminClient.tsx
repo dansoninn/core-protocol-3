@@ -7,6 +7,7 @@ import type { BlockIntensity, BlockSide, TaskFormat } from "@/types";
 import TaskSettings, { VideoPartHint } from "@/components/admin/TaskSettings";
 import BlockPrescription from "@/components/admin/BlockPrescription";
 import { formatPrice } from "@/lib/formatPrice";
+import { formatNumericDate } from "@/lib/formatDate";
 
 // ─── DB types ─────────────────────────────────────────────────────────────────
 
@@ -2142,7 +2143,7 @@ function UsersTab() {
                       </span>
                     </td>
                     <td className="px-6 py-3 text-zinc-500 hidden md:table-cell text-xs">
-                      {new Date(p.created_at).toLocaleDateString("en-GB")}
+                      {formatNumericDate(p.created_at)}
                     </td>
                     <td className="px-6 py-3 text-right">
                       <select

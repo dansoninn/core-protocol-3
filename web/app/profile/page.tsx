@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isDayDone } from "@/lib/dayLogic";
 import ProfileSignOut from "./ProfileSignOut";
 import ProfileThemeToggle from "./ProfileThemeToggle";
+import { formatMonthYear } from "@/lib/formatDate";
 
 export const dynamic = "force-dynamic";
 
@@ -130,9 +131,7 @@ export default async function ProfilePage() {
   const initials = fullName
     ? fullName.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("")
     : email.slice(0, 1).toUpperCase() || "?";
-  const memberSince = new Date(
-    profile?.created_at ?? user.created_at
-  ).toLocaleDateString("is-IS", { year: "numeric", month: "long" });
+  const memberSince = formatMonthYear(profile?.created_at ?? user.created_at);
 
   const stats = [
     { emoji: "🔥", value: streak, label: "STREAK" },

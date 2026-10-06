@@ -89,7 +89,7 @@ export default function TopBar({ userEmail, userFullName, isAdmin }: Props) {
               height: 32,
               borderRadius: "50%",
               background: "var(--surface2)",
-              border: "1.5px solid rgba(240,192,112,0.4)",
+              border: "1.5px solid var(--accent-line)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",

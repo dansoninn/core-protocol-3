@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import AdminClient from "./AdminClient";
+import { formatShortDate } from "@/lib/formatDate";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +51,7 @@ function timeAgo(dateStr: string): string {
   if (diffMin < 60) return `fyrir ${diffMin} mín.`;
   if (diffHour < 24) return `fyrir ${diffHour} klst.`;
   if (diffDay < 7) return `fyrir ${diffDay} daga`;
-  return new Date(dateStr).toLocaleDateString("is-IS", { day: "numeric", month: "short" });
+  return formatShortDate(dateStr);
 }
 
 const TAB_TITLES: Record<string, string> = {
