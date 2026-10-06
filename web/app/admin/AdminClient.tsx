@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import MuxPlayer from "@mux/mux-player-react";
 import type { BlockIntensity, BlockSide, TaskFormat } from "@/types";
@@ -8,6 +8,7 @@ import TaskSettings, { VideoPartHint } from "@/components/admin/TaskSettings";
 import BlockPrescription from "@/components/admin/BlockPrescription";
 import { formatPrice } from "@/lib/formatPrice";
 import { formatNumericDate } from "@/lib/formatDate";
+import { SaveStatusPill, useSaveStatus } from "@/components/admin/SaveStatus";
 
 // ─── DB types ─────────────────────────────────────────────────────────────────
 
@@ -1092,6 +1093,8 @@ function CoursesTab() {
 function CourseBuilderTab() {
   const supabase = createClient();
   const { toast, show } = useToast();
+  const builderRef = useRef<HTMLDivElement>(null);
+  const { track, status: saveStatus } = useSaveStatus(builderRef);
   const [courses, setCourses] = useState<DbCourse[]>([]);
   const [exercises, setExercises] = useState<DbExercise[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState("");
@@ -1214,10 +1217,10 @@ function CourseBuilderTab() {
   };
 
   const updateWeekTitle = async (weekId: string, title: string) => {
-    const { error } = await supabase
+    const { error } = await track(supabase
       .from("weeks")
       .update({ title })
-      .eq("id", weekId);
+      .eq("id", weekId));
     if (error) show(error.message, "error");
     else setWeekInState(weekId, { title });
   };
@@ -1347,7 +1350,7 @@ function CourseBuilderTab() {
   };
 
   const updateTaskField = async (taskId: string, patch: Partial<Pick<DbTask, "name" | "color" | "video_url" | "video_duration_sec" | "instructions" | "format" | "work_sec" | "rest_sec" | "rounds" | "time_cap_sec" | "rep_scheme">>) => {
-    const { error } = await supabase.from("tasks").update(patch).eq("id", taskId);
+    const { error } = await track(supabase.from("tasks").update(patch).eq("id", taskId));
     if (error) show(error.message, "error");
     else setTaskInState(taskId, patch);
   };
@@ -1395,28 +1398,28 @@ function CourseBuilderTab() {
   };
 
   const updateBlockContent = async (blockId: string, content: string) => {
-    const { error } = await supabase
+    const { error } = await track(supabase
       .from("blocks")
       .update({ content })
-      .eq("id", blockId);
+      .eq("id", blockId));
     if (error) show(error.message, "error");
     else setBlockInState(blockId, { content });
   };
 
   const updateBlockExercise = async (blockId: string, exerciseId: string) => {
-    const { error } = await supabase
+    const { error } = await track(supabase
       .from("blocks")
       .update({ exercise_id: exerciseId })
-      .eq("id", blockId);
+      .eq("id", blockId));
     if (error) show(error.message, "error");
     else setBlockInState(blockId, { exercise_id: exerciseId });
   };
 
   const clearBlockExercise = async (blockId: string) => {
-    const { error } = await supabase
+    const { error } = await track(supabase
       .from("blocks")
       .update({ exercise_id: null })
-      .eq("id", blockId);
+      .eq("id", blockId));
     if (error) show(error.message, "error");
     else setBlockInState(blockId, { exercise_id: null });
   };
@@ -1516,7 +1519,7 @@ function CourseBuilderTab() {
     blockId: string,
     patch: Partial<Pick<DbBlock, "sets" | "reps" | "load" | "duration_sec" | "rest_sec" | "side" | "intensity" | "group_label" | "content">>
   ) => {
-    const { error } = await supabase.from("blocks").update(patch).eq("id", blockId);
+    const { error } = await track(supabase.from("blocks").update(patch).eq("id", blockId));
     if (error) show(error.message, "error");
     else setBlockInState(blockId, patch);
   };
@@ -1682,8 +1685,9 @@ function CourseBuilderTab() {
   } as const;
 
   return (
-    <>
+    <div ref={builderRef}>
       {toast && <Toast msg={toast.msg} type={toast.type} />}
+      <SaveStatusPill status={saveStatus} />
 
       {/* Course selector */}
       <div style={{ marginBottom: 20, position: "relative" }}>
@@ -2058,7 +2062,7 @@ function CourseBuilderTab() {
           )}
         </div>
       )}
-    </>
+    </div>
   );
 }
 
