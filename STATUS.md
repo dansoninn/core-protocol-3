@@ -47,11 +47,6 @@ Shipped earlier:
   is not gated on purchase. The "Kaupa" button inserts straight into `purchases`,
   and RLS permits a self-insert, so any signed-in user can grant themselves any
   course. **Deliberately parked, not forgotten.**
-- **Date formatting.** Four `toLocaleDateString` calls remain:
-  `app/dashboard/page.tsx`, `app/profile/page.tsx`, `app/admin/page.tsx`,
-  `app/admin/AdminClient.tsx` (the last uses `en-GB`, which is wrong).
-  A deterministic fix needs a hardcoded Icelandic month array, not just a
-  different locale string.
 - **Unguarded `getUser()` in `app/dashboard/page.tsx:66`** — documented in
   `middleware.ts`, not fixed. Needs a decision about what `/dashboard` should
   render during a Supabase outage.
@@ -80,53 +75,34 @@ Shipped earlier:
     the whole-part "Merkja lokið" (3b.2) is what completes it. Daniel is an
     admin, so the bypass opens every day for him regardless; the lock path
     needs a non-admin account to see.
-- **Step 3b** — all 4 sub-steps built. 3b.1 and 3b.2 are on `main` and live
-  (`bb0d38f`, 3b.2 checked by Daniel on the test course: the whole-part button
-  persists). 3b.3 + 3b.4 are on branch `step-3b`, pending Daniel's check on the
-  test course, Days 2–3.
-- **Superset / complex naming.** A group shows its letter and "N æfingar í
-  röð, hvíld eftir hópinn" — deliberately neutral. Whether to call 2 blocks a
-  "Supersett" and 3+ a "Complex" is a coaching distinction the data does not
-  hold (a complex is one implement, not a count). Needs Daniel's call; a
-  per-task or per-group type field would be the honest way.
-- **Video part done via its blocks, without a `task_progress` row.** Before
-  3b.2, tagged exercises on a video part had their own toggles. A user who
-  ticked them all has the part done by the block rule, but the part's button
-  reads "Merkja lokið" (it tracks the `task_progress` row) next to a "Lokið"
-  badge; un-marking is impossible from the UI. Only matters for progress
-  written before 3b.2 — likely test accounts only. Fix if seen: show the
-  button as done when `isPartDone`, or delete those block rows.
+- **Step 3b — done.** 3b.1–3b.4 merged to `main` (`dd56adc`). 3b.2 checked by
+  Daniel on the test course (whole-part button persists); 3b.3/3b.4 merged on
+  his word, not yet looked at with real data — Days 2–3 of the test course.
 - **Backfill `tasks.video_duration_sec`** — `web/scripts/backfill-video-duration.mjs`
   (dry run by default, `--apply` writes). Not run. Blocked: it needs a valid
   service key (see below) and `MUX_TOKEN_ID` / `MUX_TOKEN_SECRET`, which are not
   in `web/.env.local` (only on Vercel). It refuses the current 26-character key.
-- **Progress metrics still count blocks, not parts.** The step 3b.1 rule covers
-  day and part completion, unlock and "{done} / {total}" counts. These still read
-  `progress` only: the course overview ring and %, the course progress %, the
-  dashboard "X / Y lokið" and estimate, the profile %, streak, calendar dots,
-  the "ÆFINGAR" count, and admin "active today". They ignore `task_progress`
-  and will be wrong once video parts are completed as a whole. Also predating
-  3b: the course overview and profile percentages count text blocks in the
-  denominator (they can never reach 100%), and the profile's "current week"
-  walks weeks in unsorted database order.
-- **Admin: visible autosave status** ("Vistar…" / "Vistað ✓") per field, and a
-  warning before leaving with an unsaved or failed edit.
-- **Admin: quick-tag field on parts with a video.** A persistent exercise-bank
-  search box under the part. Enter adds the top match as a new exercise block
-  (a tag) and keeps focus, so the next one can be typed straight away. Skips
-  exercises already tagged on that part. Optional — adding a single exercise
-  the current way still works.
-- **Hard-coded dark-theme gold** (`rgba(240,192,112,…)`) in
-  `app/dashboard/page.tsx` (4 places), `BottomNav.tsx`, `TopBar.tsx` and the
-  admin `Sidebar.tsx`. Not blue, but pale next to the light theme's gold;
-  should use `--accent-dim` / `--accent-line`.
+- **Admin "Virkir í dag" counts only the admin.** `app/admin/page.tsx` reads
+  other users' `progress`, but RLS lets every user (admins too) read only
+  their own rows, so the number is 0 or 1. Fixing it needs an admin read
+  policy on `progress` and `task_progress` (SQL, security-relevant) — Daniel's
+  call. Left as is.
+- **Light-mode leftovers over images are fine; others fixed.** Remaining
+  `rgba(255,255,255,…)` are borders/scrims on photos or blurred chips
+  (course hero, course cards), which are correct in both themes.
 
 ## Unverified
 
-- **Steps 3b.3 + 3b.4 (branch `step-3b`).** Build passes; `formatSummary` and
-  `layoutPartBlocks` checked with assertions in Node (every format, rounds
-  arithmetic, group runs broken by text/labels, lone labels). Not seen in a
-  browser — check Days 2–3 of the test course, and the tiles at 375px.
+- **Branch `step-4-cleanup` (on top of 3b).** Build passes after each commit;
+  `formatDate` checked with assertions; part page (tiles, A/B groups,
+  reference cards, green done state) rendered with fixture data at 375 px and
+  680 px in headless Chromium. Not run with a real session: dashboard,
+  profile and course-overview numbers on real progress; the save pill and
+  leave warning in /admin; quick-tag on a real video part.
+
+- **Steps 3b.3 + 3b.4.** `formatSummary` and `layoutPartBlocks` checked with
+  assertions; rendered with fixture data at 375 px (tiles wrap rather than
+  truncate). Not seen with real data — Days 2–3 of the test course.
 
 - **Step 3b.2 leftovers.** Checked: Day 1 "Teygjur" button persists. Not
   yet seen: Day 4 reference cards and duration line, the "Tókst ekki að
@@ -138,11 +114,6 @@ Shipped earlier:
   pages, dashboard and profile with real progress; `task_progress` reads from a
   signed-in page; duration capture on a real Mux upload; the backfill on real
   data. The test course is meant for this.
-- **`web/seed-test-course.sql` has not been run.** Checked offline (row widths,
-  foreign keys, CHECK values, exercise ids against the live bank, unique ids);
-  no local Postgres to execute it. Its last SELECT reports counts and which
-  video Day 4 reused.
-
 - **The retryable/network branch in `middleware.ts`.** Never observed to fire:
   auth-js logs the retryable fetch error internally and surfaces
   `AuthSessionMissingError` to the caller instead. Kept as defensive code; see
@@ -214,6 +185,34 @@ Shipped earlier:
   video and on the day overview card); null until saved on upload or
   backfilled, and then no time is shown. Its reference exercises are never
   summed — that would show the wrong number.
+- **Every progress metric counts parts** (`partsProgress`, `lib/dayLogic.ts`):
+  course %, per-day rings and "x/y liðir" on the course overview, dashboard
+  "x / y liðir" and course %, profile %. Text blocks no longer sit in a
+  denominator. Streak, calendar dots and "ÆFINGAR" count a day with any
+  completed block **or** whole part. Profile walks weeks in course order.
+  The dashboard's "~N mín" estimate is still ~3 min per exercise block.
+- **Dates are formatted by `lib/formatDate.ts`** — hardcoded Icelandic months
+  and weekdays, UTC fields (Iceland is UTC+0, no DST). Never
+  `toLocaleDateString` / `Intl`, same reason as prices.
+- **Gold is always a token.** The last hard-coded `rgba(240,192,112,…)` values
+  use `--accent-dim` / `--accent-line`; ring tracks use `--surface3`.
+- **Course builder autosave status** (`components/admin/SaveStatus.tsx`): one
+  pill bottom-right — "Vistar…", "Vistað ✓" (2 s), "Vistun mistókst" (until
+  a later save succeeds) — over the builder's autosave writes (week title,
+  task fields, block fields/content/exercise). One pill, not one per field:
+  each block has up to ten fields, and the existing error toast already names
+  the failure. The tab warns before closing/reloading while a write is
+  pending, a write failed, or a typed-in field has not been blurred yet
+  (blur is what saves). In-app navigation is not intercepted.
+- **Quick-tag on video parts** (`components/admin/QuickTag.tsx`): under the
+  blocks of a part with a video. Type, Enter adds the top match (name starts
+  with › name contains › category), clears and keeps focus; already-tagged
+  exercises are skipped; one insert at a time.
+- **Groups are labelled neutrally** — the letter and "N æfingar í röð, hvíld
+  eftir hópinn", no "Supersett"/"Complex" (Daniel, 2026-10-06).
+- **A whole part's button follows `isPartDone`.** A video part done by its
+  blocks alone (ticked before 3b.2) shows as done; "afmerkja" clears those
+  block rows.
 - **Format tiles (3b.3).** Above the instructions on a non-video part: the
   format name (gold), then one tile per set parameter, with the admin's words
   (Lengd, Bil, Vinna, Hvíld, Hringir, Tímamörk, Endurtekningar). "sets" shows

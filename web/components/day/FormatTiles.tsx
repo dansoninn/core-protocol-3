@@ -12,8 +12,10 @@ export default function FormatTiles({ summary }: { summary: FormatSummary }) {
       role="group"
       aria-label={`Snið: ${summary.name}`}
       style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(88px, 1fr))",
+        // Tiles size to their content and share the row; they wrap rather
+        // than truncate ("Interval", "1:30 mín" must stay readable).
+        display: "flex",
+        flexWrap: "wrap",
         gap: 8,
         marginBottom: 14,
       }}
@@ -30,7 +32,8 @@ function Tile({ value, label, accent = false }: { value: string; label: string; 
   return (
     <div
       style={{
-        minWidth: 0,
+        flex: "1 1 auto",
+        minWidth: 64,
         padding: "10px 12px",
         borderRadius: 12,
         background: accent ? "var(--accent-dim)" : "var(--surface)",
@@ -41,11 +44,9 @@ function Tile({ value, label, accent = false }: { value: string; label: string; 
         style={{
           display: "block",
           fontFamily: "var(--font-bebas)",
-          fontSize: 24,
+          fontSize: 22,
           lineHeight: 1,
           color: accent ? "var(--accent)" : "var(--text)",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
           whiteSpace: "nowrap",
         }}
       >
