@@ -8,12 +8,12 @@ Last updated: 2026-10-06
 
 ## Done
 
-Recent commits, newest first. The day view step 3b.1 commit (task-level
-completion + video duration) is the one after `086ce9a`; a commit cannot list
-its own hash.
+Recent commits, newest first. A commit cannot list its own hash, so the latest
+one is never in this table — see `git log`.
 
 | Commit | What changed |
 |---|---|
+| `0a2d032` | Day view step 3b.1 — `task_progress` + `tasks.video_duration_sec` (`web/migration-task-progress.sql`, **run by Daniel, verified live 2026-10-06**: 4 columns, the new column, 3 policies); one completion rule (`lib/dayLogic.ts`) used by every page; duration captured on Mux upload; backfill script |
 | `086ce9a` | Docs: CLAUDE.md schema matches production after the sets/reps change |
 | `13a0511` | `web/migration-sets-reps-text.sql` — `blocks.sets` / `reps` INTEGER → TEXT. **Run by Daniel, confirmed live** |
 | `de6f392` | Day-view rows normalised once at the data boundary (`lib/dayNormalize.ts`) — fixed the production `.trim()` crash |
@@ -65,17 +65,18 @@ Shipped earlier:
   done, **pending Daniel's check in /admin**. **Step 3a done (day overview +
   one page per part), pending Daniel's check** — logic tested and layout checked
   at 375px with fixture data only; never seen with real data or a real session.
-- **`web/migration-task-progress.sql` — pending, Daniel runs it.** Not live
-  until he confirms. Adds `task_progress` (RLS: select/insert/delete own rows)
-  and `tasks.video_duration_sec`. **Run it before the step 3b.1 commit
-  deploys.** Until then:
-  - the admin task video upload fails — its update names `video_duration_sec`;
-  - "Duplicate day" silently drops every part — its task insert names
-    `video_duration_sec` and the loop skips failed inserts;
-  - `task_progress` reads fail and count as empty — completion falls back to
-    exercise blocks, so the user pages keep working.
-  Once live, add `task_progress` and `tasks.video_duration_sec` to the
-  CLAUDE.md schema.
+- **Test course — `web/seed-test-course.sql`, pending, Daniel runs it.**
+  "TEST — prófunarnámskeið" (`/courses/test-namskeid`): 1 week, 4 days, 10
+  parts covering every 3b case, plus a purchase for Daniel. Idempotent (fixed
+  `7e570000-…` UUIDs, `ON CONFLICT DO NOTHING`). Caveats:
+  - **Visible to everyone on `/` and `/courses`** — `courses` has no published
+    flag. Price 0, so any signed-in user can "Kaupa" it (the same self-insert
+    hole as under payments). Delete it in /admin when 3b is done; weeks, days,
+    parts, blocks, purchases and progress cascade.
+  - Day 1's "Teygjur" (instructions only, no exercise blocks) is deliberate —
+    it keeps Day 1 from being done until "Merkja lokið" ships, so for a
+    non-admin Days 2–4 stay locked. Daniel is an admin, so the bypass opens
+    them for him regardless; the lock path needs a non-admin account to see.
 - **Step 3b** — sub-step 1/4 done (schema, one completion rule, duration
   capture). Remaining: video part layout (showing `video_duration_sec`),
   format stat tiles, single "Merkja lokið" for video parts, superset/complex
@@ -84,10 +85,11 @@ Shipped earlier:
   completed** — the rule counts it, but nothing writes `task_progress` yet. A
   day containing one (an untagged video part, a text-only part) is no longer
   done when its exercises are, so the next day locks — including for users who
-  finished that day under the old rule. Check before deploying 3b.1 alone:
+  finished that day under the old rule. **Sterkari 60+ has 3 such parts;
+  Daniel is fixing them by hand in /admin** (no code hotfix — decided
+  2026-10-06). Re-check, outside the test course:
   `SELECT t.id, t.name, d.title FROM tasks t JOIN days d ON d.id = t.day_id
   WHERE NOT EXISTS (SELECT 1 FROM blocks b WHERE b.task_id = t.id AND b.type = 'exercise');`
-  Zero rows → safe.
 - **Backfill `tasks.video_duration_sec`** — `web/scripts/backfill-video-duration.mjs`
   (dry run by default, `--apply` writes). Not run. Blocked: it needs a valid
   service key (see below) and `MUX_TOKEN_ID` / `MUX_TOKEN_SECRET`, which are not
@@ -116,10 +118,15 @@ Shipped earlier:
 ## Unverified
 
 - **Step 3b.1 signed-in paths.** Build passes; the rule is checked with
-  assertions; signed-out routes load in dev without errors. Not exercised
-  (no session, migration not live): the course overview, day and part pages,
-  dashboard and profile with real progress; `task_progress` reads against the
-  real table; duration capture on a real Mux upload; the backfill on real data.
+  assertions; signed-out routes load in dev without errors; the migration is
+  verified live. Not exercised (no session): the course overview, day and part
+  pages, dashboard and profile with real progress; `task_progress` reads from a
+  signed-in page; duration capture on a real Mux upload; the backfill on real
+  data. The test course is meant for this.
+- **`web/seed-test-course.sql` has not been run.** Checked offline (row widths,
+  foreign keys, CHECK values, exercise ids against the live bank, unique ids);
+  no local Postgres to execute it. Its last SELECT reports counts and which
+  video Day 4 reused.
 
 - **The retryable/network branch in `middleware.ts`.** Never observed to fire:
   auth-js logs the retryable fetch error internally and surfaces

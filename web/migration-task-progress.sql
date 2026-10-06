@@ -56,8 +56,8 @@ ALTER TABLE public.tasks
 COMMIT;
 
 -- ─── Verify (run after the migration) ───────────────────────────────────────
--- 1. Table and column. Expect 5 task_progress rows, then 1 tasks row
---    (video_duration_sec, integer, YES).
+-- 1. Table and column. Expect 4 task_progress rows (id, user_id, task_id,
+--    completed_at), then 1 tasks row (video_duration_sec, integer, YES).
 --
 -- SELECT table_name, column_name, data_type, is_nullable, column_default
 -- FROM information_schema.columns

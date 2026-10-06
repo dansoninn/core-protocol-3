@@ -32,21 +32,30 @@ exercises (id, name, category, description, video_url,
 weeks (id, course_id, title, order_index)
 days (id, week_id, title, description, order_index)
 tasks (id, day_id, name, color, video_url, order_index,
-       instructions, format, work_sec, rest_sec, rounds, time_cap_sec, rep_scheme)
+       instructions, format, work_sec, rest_sec, rounds, time_cap_sec, rep_scheme,
+       video_duration_sec)
 blocks (id, task_id, type['exercise'|'text'], order_index,
         exercise_id, content, sets, reps, load,
         duration_sec, rest_sec, side, intensity, group_label)
 purchases (id, user_id, course_id, created_at)
 progress (id, user_id, block_id, completed_at)
+task_progress (id, user_id, task_id, completed_at)  -- unique (user_id, task_id)
 ```
 - `blocks.sets`, `reps` and `load` are TEXT — coaches write ranges and notes
   ("8-12", "10/hlið", "max").
 - `blocks.load_kg` (NUMERIC) still exists but is unused — to be dropped (STATUS.md).
+- `tasks.video_url` holds a Mux playback ID; `video_duration_sec` is its Mux
+  duration in whole seconds (a video part's total time).
+- `progress` and `task_progress`: RLS lets a user select/insert/delete only
+  their own rows.
 - Day-view rows are normalised to `types/index.ts` in `lib/dayNormalize.ts`.
 
 ## Content Hierarchy
 Course → Week → Day → Task → Block (exercise or text)
-Progress tracked at **block level** (exercise blocks only).
+Progress is tracked per exercise block (`progress`) and per part (`task_progress`).
+A part is done when it has a `task_progress` row, or it has ≥1 exercise block and
+all of them are in `progress`; a day is done when every part is. One
+implementation: `isPartDone` / `partProgress` / `isDayDone` in `lib/dayLogic.ts`.
 
 ## Key Rules
 - NO mock/hardcoded data — everything reads from Supabase
