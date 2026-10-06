@@ -97,15 +97,30 @@ export function parseSets(sets: string | null | undefined): number {
 }
 
 /**
- * Σ duration_sec × max(1, sets) + rest_sec over the part's exercise blocks.
- * Null when no exercise block has a duration.
- *
- * Also null for a video part: its total time is the Mux video duration
- * (tasks.video_duration_sec, STATUS.md → Decided), which the 3b part UI will
- * show. Summing reference exercises would show the wrong number.
+ * A part completed as a whole by one "Merkja lokið" (a task_progress row):
+ * a video part — its tagged exercises are reference only — or a part with no
+ * exercise blocks. Every other part is completed exercise by exercise.
  */
-export function partTotalSeconds(part: Pick<DbTask, "blocks" | "video_url">): number | null {
-  if (part.video_url) return null;
+export function isWholePart(part: Pick<DbTask, "blocks" | "video_url">): boolean {
+  return Boolean(part.video_url) || exerciseBlocks(part).length === 0;
+}
+
+/**
+ * A part's total time in seconds, or null when it cannot be known.
+ *
+ * Video part: the Mux duration (tasks.video_duration_sec, STATUS.md →
+ * Decided) — null until it is saved on upload or backfilled. Its reference
+ * exercises are never summed; that would show the wrong number.
+ *
+ * Otherwise: Σ duration_sec × max(1, sets) + rest_sec over the exercise
+ * blocks, null when none has a duration.
+ */
+export function partTotalSeconds(
+  part: Pick<DbTask, "blocks" | "video_url" | "video_duration_sec">
+): number | null {
+  if (part.video_url) {
+    return part.video_duration_sec && part.video_duration_sec > 0 ? part.video_duration_sec : null;
+  }
   const ex = exerciseBlocks(part);
   if (!ex.some((b) => (b.duration_sec ?? 0) > 0)) return null;
   return ex.reduce(

@@ -8,12 +8,14 @@ import {
   exerciseBlocks,
   formatApproxMinutes,
   isPartDone,
+  isWholePart,
   partInstructions,
   partProgress,
   partTotalSeconds,
   type DayView,
 } from "@/lib/dayLogic";
 import { useBlockProgress } from "@/components/day/useBlockProgress";
+import { useTaskProgress } from "@/components/day/useTaskProgress";
 import DayStrip from "@/components/day/DayStrip";
 import DayProgress from "@/components/day/DayProgress";
 import InstructionsBox from "@/components/day/InstructionsBox";
@@ -23,7 +25,14 @@ import PrevNextNav from "@/components/day/PrevNextNav";
 import VideoPlayer from "@/components/VideoPlayer";
 import ExerciseVideoModal from "@/components/ExerciseVideoModal";
 
-/** One part of the day: instructions, optional video, exercises, prev/next part. */
+/**
+ * One part of the day: instructions, optional video, exercises, prev/next part.
+ *
+ * Two ways a part is completed (lib/dayLogic.ts → isWholePart):
+ * - exercise by exercise ("Merkja lokið" on each card), or
+ * - as a whole — a video part, or a part with no exercise blocks — by one
+ *   "Merkja lokið" for the part. A video part's tagged exercises are reference.
+ */
 export default function PartClient({
   view,
   parts,
@@ -35,11 +44,14 @@ export default function PartClient({
   parts: DbTask[];
   partIndex: number;
   initialCompletedBlockIds: string[];
-  /** Parts marked done as a whole (task_progress). Read-only until the part's "Merkja lokið" lands. */
+  /** Parts marked done as a whole (task_progress). */
   completedTaskIds: string[];
 }) {
   const { completedIds, saving, toggle } = useBlockProgress(view.userId, initialCompletedBlockIds);
-  const completedTasks = new Set(completedTaskIds);
+  const { completedTaskIds: completedTasks, savingTask, failedTask, toggleTask } = useTaskProgress(
+    view.userId,
+    completedTaskIds
+  );
   const [activeExercise, setActiveExercise] = useState<DbExercise | null>(null);
 
   const part = parts[partIndex];
@@ -52,6 +64,9 @@ export default function PartClient({
   const exercises = exerciseBlocks(part);
   const seconds = partTotalSeconds(part);
   const instructions = partInstructions(part);
+  const isVideo = Boolean(part.video_url);
+  const whole = isWholePart(part);
+  const wholeDone = completedTasks.has(part.id);
 
   let exerciseNumber = 0;
 
@@ -100,8 +115,15 @@ export default function PartClient({
         </header>
 
         {part.video_url && (
-          <div style={{ borderRadius: 14, overflow: "hidden", marginBottom: 14, background: "var(--surface)" }}>
-            <VideoPlayer url={part.video_url} title={part.name} />
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ borderRadius: 14, overflow: "hidden", background: "var(--surface)" }}>
+              <VideoPlayer url={part.video_url} title={part.name} />
+            </div>
+            {seconds !== null && (
+              <p style={{ fontSize: 12, color: "var(--muted2)", marginTop: 8 }}>
+                Myndband · {formatApproxMinutes(seconds)}
+              </p>
+            )}
           </div>
         )}
 
@@ -110,9 +132,9 @@ export default function PartClient({
         {exercises.length > 0 && (
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginTop: 24, marginBottom: 10 }}>
             <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--muted2)" }}>
-              Æfingar í {part.name} ({exercises.length})
+              {isVideo ? "Æfingar í myndbandinu" : `Æfingar í ${part.name}`} ({exercises.length})
             </h2>
-            {seconds !== null && (
+            {seconds !== null && !isVideo && (
               <span style={{ fontSize: 12, color: "var(--muted2)", flexShrink: 0 }}>
                 {formatApproxMinutes(seconds)} heildartími
               </span>
@@ -137,10 +159,40 @@ export default function PartClient({
                 saving={saving === block.id}
                 onToggleDone={(e) => toggle(e, block.id)}
                 onPlay={setActiveExercise}
+                referenceOnly={isVideo}
               />
             );
           })}
         </div>
+
+        {whole && (
+          <div style={{ marginTop: 24 }}>
+            <button
+              type="button"
+              onClick={(e) => toggleTask(e, part.id)}
+              disabled={savingTask === part.id}
+              style={{
+                width: "100%",
+                padding: "14px 16px",
+                borderRadius: 14,
+                fontSize: 15,
+                fontWeight: 700,
+                cursor: savingTask === part.id ? "default" : "pointer",
+                opacity: savingTask === part.id ? 0.6 : 1,
+                ...(wholeDone
+                  ? { background: "var(--success-dim)", color: "var(--success)", border: "1px solid var(--success)" }
+                  : { background: "var(--accent)", color: "var(--bg)", border: "1px solid var(--accent)" }),
+              }}
+            >
+              {savingTask === part.id ? "Vistar…" : wholeDone ? "Lokið ✓ — afmerkja" : "Merkja lokið"}
+            </button>
+            {failedTask === part.id && (
+              <p role="alert" style={{ fontSize: 12, color: "var(--muted2)", marginTop: 8, textAlign: "center" }}>
+                Tókst ekki að vista. Reyndu aftur.
+              </p>
+            )}
+          </div>
+        )}
 
         <PrevNextNav
           prev={prevPart ? { href: partHref(prevPart), label: "Fyrri liður", title: prevPart.name } : null}

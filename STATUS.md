@@ -13,6 +13,7 @@ one is never in this table — see `git log`.
 
 | Commit | What changed |
 |---|---|
+| `5c58281` | Test course seed (`web/seed-test-course.sql`); `task_progress` recorded as live |
 | `0a2d032` | Day view step 3b.1 — `task_progress` + `tasks.video_duration_sec` (`web/migration-task-progress.sql`, **run by Daniel, verified live 2026-10-06**: 4 columns, the new column, 3 policies); one completion rule (`lib/dayLogic.ts`) used by every page; duration captured on Mux upload; backfill script |
 | `086ce9a` | Docs: CLAUDE.md schema matches production after the sets/reps change |
 | `13a0511` | `web/migration-sets-reps-text.sql` — `blocks.sets` / `reps` INTEGER → TEXT. **Run by Daniel, confirmed live** |
@@ -65,7 +66,9 @@ Shipped earlier:
   done, **pending Daniel's check in /admin**. **Step 3a done (day overview +
   one page per part), pending Daniel's check** — logic tested and layout checked
   at 375px with fixture data only; never seen with real data or a real session.
-- **Test course — `web/seed-test-course.sql`, pending, Daniel runs it.**
+- **Test course — `web/seed-test-course.sql`, run by Daniel 2026-10-06**
+  (4 days, 10 parts, 29 blocks, his purchase; Day 4 video reused from the
+  task "Æfing 1"). Still open:
   "TEST — prófunarnámskeið" (`/courses/test-namskeid`): 1 week, 4 days, 10
   parts covering every 3b case, plus a purchase for Daniel. Idempotent (fixed
   `7e570000-…` UUIDs, `ON CONFLICT DO NOTHING`). Caveats:
@@ -74,22 +77,26 @@ Shipped earlier:
     hole as under payments). Delete it in /admin when 3b is done; weeks, days,
     parts, blocks, purchases and progress cascade.
   - Day 1's "Teygjur" (instructions only, no exercise blocks) is deliberate —
-    it keeps Day 1 from being done until "Merkja lokið" ships, so for a
-    non-admin Days 2–4 stay locked. Daniel is an admin, so the bypass opens
-    them for him regardless; the lock path needs a non-admin account to see.
-- **Step 3b** — sub-step 1/4 done (schema, one completion rule, duration
-  capture). Remaining: video part layout (showing `video_duration_sec`),
-  format stat tiles, single "Merkja lokið" for video parts, superset/complex
-  grouping (A1/A2).
-- **Until "Merkja lokið" ships, a part with no exercise blocks cannot be
-  completed** — the rule counts it, but nothing writes `task_progress` yet. A
-  day containing one (an untagged video part, a text-only part) is no longer
-  done when its exercises are, so the next day locks — including for users who
-  finished that day under the old rule. **Sterkari 60+ has 3 such parts;
-  Daniel is fixing them by hand in /admin** (no code hotfix — decided
-  2026-10-06). Re-check, outside the test course:
+    the whole-part "Merkja lokið" (3b.2) is what completes it. Daniel is an
+    admin, so the bypass opens every day for him regardless; the lock path
+    needs a non-admin account to see.
+- **Step 3b** — sub-steps 1 and 2 of 4 done (3b.2 on branch `step-3b`, not
+  merged). Remaining: format stat tiles (3b.3), superset/complex grouping
+  A1/A2 (3b.4).
+- **3b.2 is on branch `step-3b`, not on `main`.** Until it is merged and
+  deployed, production cannot complete a part with no exercise blocks. The 3
+  such parts in Sterkari 60+ were fixed by hand in /admin (re-checked: 0 rows,
+  2026-10-06), so production is unaffected today — re-run before adding any
+  video-only or text-only part to a live course:
   `SELECT t.id, t.name, d.title FROM tasks t JOIN days d ON d.id = t.day_id
   WHERE NOT EXISTS (SELECT 1 FROM blocks b WHERE b.task_id = t.id AND b.type = 'exercise');`
+- **Video part done via its blocks, without a `task_progress` row.** Before
+  3b.2, tagged exercises on a video part had their own toggles. A user who
+  ticked them all has the part done by the block rule, but the part's button
+  reads "Merkja lokið" (it tracks the `task_progress` row) next to a "Lokið"
+  badge; un-marking is impossible from the UI. Only matters for progress
+  written before 3b.2 — likely test accounts only. Fix if seen: show the
+  button as done when `isPartDone`, or delete those block rows.
 - **Backfill `tasks.video_duration_sec`** — `web/scripts/backfill-video-duration.mjs`
   (dry run by default, `--apply` writes). Not run. Blocked: it needs a valid
   service key (see below) and `MUX_TOKEN_ID` / `MUX_TOKEN_SECRET`, which are not
@@ -116,6 +123,12 @@ Shipped earlier:
   should use `--accent-dim` / `--accent-line`.
 
 ## Unverified
+
+- **Step 3b.2 (branch `step-3b`).** `npm run build` passes (built in a clean
+  Linux checkout with Google Fonts mocked — the build sandbox has no network).
+  Not run in a browser: the whole-part button, the reference cards, the
+  duration line, the "Tókst ekki að vista" error path. Check on the test
+  course: Day 1 "Teygjur" and Day 4 (video part).
 
 - **Step 3b.1 signed-in paths.** Build passes; the rule is checked with
   assertions; signed-out routes load in dev without errors; the migration is
@@ -195,8 +208,16 @@ Shipped earlier:
 - "Myndband ✓" in the course builder counts `mux_playback_id` only, because
   the player plays Mux only. A legacy `video_url` without a Mux id shows
   "Gamalt myndband — hlaða upp í Mux"; its user-side thumbnail is not tappable.
-- In 3a a video part shows no computed total time; its time will be the Mux
-  duration (3b). Summing its reference exercises would show the wrong number.
+- A video part's total time is `tasks.video_duration_sec` (shown under the
+  video and on the day overview card); null until saved on upload or
+  backfilled, and then no time is shown. Its reference exercises are never
+  summed — that would show the wrong number.
+- **Parts completed as a whole** (`isWholePart`: a video part, or a part with
+  no exercise blocks) get one "Merkja lokið" under the content, writing
+  `task_progress` (`components/day/useTaskProgress.ts`). A video part's tagged
+  exercises are reference cards: numbered, never checked, no button, and
+  expandable only when they have a note. Exercise-only parts are unchanged —
+  completed card by card.
 - After a progress write the part page calls `router.refresh()`, which empties
   Next's 30s client router cache so the overview shows fresh progress. This is
   a deliberate exception to the no-refresh rule, which is about admin edits.

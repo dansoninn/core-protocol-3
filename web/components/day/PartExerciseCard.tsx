@@ -9,6 +9,10 @@ import PrescriptionList from "@/components/day/PrescriptionList";
  * An exercise on the part page. Tap the card to expand (coach note, else the
  * bank description, then "Merkja lokið"). Tap the thumbnail to play the
  * explanation video — only when the exercise has one.
+ *
+ * `referenceOnly`: an exercise tagged on a video part. It is shown for
+ * reference — numbered, never checked, no "Merkja lokið"; the part is
+ * completed as a whole.
  */
 export default function PartExerciseCard({
   block,
@@ -17,6 +21,7 @@ export default function PartExerciseCard({
   saving,
   onToggleDone,
   onPlay,
+  referenceOnly = false,
 }: {
   block: DbBlock;
   number: number;
@@ -24,13 +29,17 @@ export default function PartExerciseCard({
   saving: boolean;
   onToggleDone: (e: MouseEvent) => void;
   onPlay: (exercise: DbExercise) => void;
+  referenceOnly?: boolean;
 }) {
+  const showDone = done && !referenceOnly;
+  const note = block.content?.trim() || block.exercises?.description?.trim() || null;
+  // A reference card with no note has nothing to expand.
+  const expandable = Boolean(note) || !referenceOnly;
   const [open, setOpen] = useState(false);
   const exercise = block.exercises;
   const name = exercise?.name ?? "Æfing";
   // ExerciseVideoModal plays Mux only, so that is what makes the thumbnail tappable.
   const playable = Boolean(exercise?.mux_playback_id?.trim());
-  const note = block.content?.trim() || exercise?.description?.trim() || null;
 
   return (
     <div
@@ -43,7 +52,7 @@ export default function PartExerciseCard({
     >
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: 14 }}>
         <span
-          aria-label={done ? "Lokið" : undefined}
+          aria-label={showDone ? "Lokið" : undefined}
           style={{
             width: 26,
             height: 26,
@@ -55,12 +64,12 @@ export default function PartExerciseCard({
             justifyContent: "center",
             fontFamily: "var(--font-bebas)",
             fontSize: 15,
-            background: done ? "var(--success-dim)" : "var(--surface2)",
-            color: done ? "var(--success)" : "var(--muted2)",
-            border: done ? "1px solid var(--success)" : "1px solid var(--border)",
+            background: showDone ? "var(--success-dim)" : "var(--surface2)",
+            color: showDone ? "var(--success)" : "var(--muted2)",
+            border: showDone ? "1px solid var(--success)" : "1px solid var(--border)",
           }}
         >
-          {done ? <Check size={14} strokeWidth={2.5} /> : number}
+          {showDone ? <Check size={14} strokeWidth={2.5} /> : number}
         </span>
 
         <Thumbnail
@@ -74,10 +83,11 @@ export default function PartExerciseCard({
 
         <button
           type="button"
-          aria-expanded={open}
+          aria-expanded={expandable ? open : undefined}
+          disabled={!expandable}
           onClick={(e) => {
             e.preventDefault();
-            setOpen((v) => !v);
+            if (expandable) setOpen((v) => !v);
           }}
           style={{
             flex: 1,
@@ -89,7 +99,7 @@ export default function PartExerciseCard({
             border: "none",
             padding: 0,
             textAlign: "left",
-            cursor: "pointer",
+            cursor: expandable ? "pointer" : "default",
             color: "inherit",
           }}
         >
@@ -117,46 +127,50 @@ export default function PartExerciseCard({
             )}
             <PrescriptionList block={block} />
           </span>
-          <ChevronDown
-            size={18}
-            style={{
-              color: "var(--muted2)",
-              flexShrink: 0,
-              marginTop: 2,
-              transform: open ? "rotate(180deg)" : "none",
-              transition: "transform 0.15s",
-            }}
-          />
+          {expandable && (
+            <ChevronDown
+              size={18}
+              style={{
+                color: "var(--muted2)",
+                flexShrink: 0,
+                marginTop: 2,
+                transform: open ? "rotate(180deg)" : "none",
+                transition: "transform 0.15s",
+              }}
+            />
+          )}
         </button>
       </div>
 
-      {open && (
+      {open && expandable && (
         <div style={{ padding: "0 14px 14px", borderTop: "1px solid var(--border)" }}>
           {note && (
             <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--text)", whiteSpace: "pre-wrap", paddingTop: 12 }}>
               {note}
             </p>
           )}
-          <button
-            type="button"
-            onClick={onToggleDone}
-            disabled={saving}
-            style={{
-              marginTop: 12,
-              width: "100%",
-              padding: "12px 16px",
-              borderRadius: 12,
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: saving ? "default" : "pointer",
-              opacity: saving ? 0.6 : 1,
-              ...(done
-                ? { background: "var(--success-dim)", color: "var(--success)", border: "1px solid var(--success)" }
-                : { background: "var(--accent)", color: "var(--bg)", border: "1px solid var(--accent)" }),
-            }}
-          >
-            {saving ? "Vistar…" : done ? "Lokið ✓ — afmerkja" : "Merkja lokið"}
-          </button>
+          {!referenceOnly && (
+            <button
+              type="button"
+              onClick={onToggleDone}
+              disabled={saving}
+              style={{
+                marginTop: 12,
+                width: "100%",
+                padding: "12px 16px",
+                borderRadius: 12,
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: saving ? "default" : "pointer",
+                opacity: saving ? 0.6 : 1,
+                ...(done
+                  ? { background: "var(--success-dim)", color: "var(--success)", border: "1px solid var(--success)" }
+                  : { background: "var(--accent)", color: "var(--bg)", border: "1px solid var(--accent)" }),
+              }}
+            >
+              {saving ? "Vistar…" : done ? "Lokið ✓ — afmerkja" : "Merkja lokið"}
+            </button>
+          )}
         </div>
       )}
     </div>
