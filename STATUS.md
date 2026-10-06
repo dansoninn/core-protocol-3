@@ -80,16 +80,15 @@ Shipped earlier:
     the whole-part "Merkja lokið" (3b.2) is what completes it. Daniel is an
     admin, so the bypass opens every day for him regardless; the lock path
     needs a non-admin account to see.
-- **Step 3b** — sub-steps 1 and 2 of 4 done (3b.2 on branch `step-3b`, not
-  merged). Remaining: format stat tiles (3b.3), superset/complex grouping
-  A1/A2 (3b.4).
-- **3b.2 is on branch `step-3b`, not on `main`.** Until it is merged and
-  deployed, production cannot complete a part with no exercise blocks. The 3
-  such parts in Sterkari 60+ were fixed by hand in /admin (re-checked: 0 rows,
-  2026-10-06), so production is unaffected today — re-run before adding any
-  video-only or text-only part to a live course:
-  `SELECT t.id, t.name, d.title FROM tasks t JOIN days d ON d.id = t.day_id
-  WHERE NOT EXISTS (SELECT 1 FROM blocks b WHERE b.task_id = t.id AND b.type = 'exercise');`
+- **Step 3b** — all 4 sub-steps built. 3b.1 and 3b.2 are on `main` and live
+  (`bb0d38f`, 3b.2 checked by Daniel on the test course: the whole-part button
+  persists). 3b.3 + 3b.4 are on branch `step-3b`, pending Daniel's check on the
+  test course, Days 2–3.
+- **Superset / complex naming.** A group shows its letter and "N æfingar í
+  röð, hvíld eftir hópinn" — deliberately neutral. Whether to call 2 blocks a
+  "Supersett" and 3+ a "Complex" is a coaching distinction the data does not
+  hold (a complex is one implement, not a count). Needs Daniel's call; a
+  per-task or per-group type field would be the honest way.
 - **Video part done via its blocks, without a `task_progress` row.** Before
   3b.2, tagged exercises on a video part had their own toggles. A user who
   ticked them all has the part done by the block rule, but the part's button
@@ -124,11 +123,14 @@ Shipped earlier:
 
 ## Unverified
 
-- **Step 3b.2 (branch `step-3b`).** `npm run build` passes (built in a clean
-  Linux checkout with Google Fonts mocked — the build sandbox has no network).
-  Not run in a browser: the whole-part button, the reference cards, the
-  duration line, the "Tókst ekki að vista" error path. Check on the test
-  course: Day 1 "Teygjur" and Day 4 (video part).
+- **Steps 3b.3 + 3b.4 (branch `step-3b`).** Build passes; `formatSummary` and
+  `layoutPartBlocks` checked with assertions in Node (every format, rounds
+  arithmetic, group runs broken by text/labels, lone labels). Not seen in a
+  browser — check Days 2–3 of the test course, and the tiles at 375px.
+
+- **Step 3b.2 leftovers.** Checked: Day 1 "Teygjur" button persists. Not
+  yet seen: Day 4 reference cards and duration line, the "Tókst ekki að
+  vista" error path.
 
 - **Step 3b.1 signed-in paths.** Build passes; the rule is checked with
   assertions; signed-out routes load in dev without errors; the migration is
@@ -212,6 +214,22 @@ Shipped earlier:
   video and on the day overview card); null until saved on upload or
   backfilled, and then no time is shown. Its reference exercises are never
   summed — that would show the wrong number.
+- **Format tiles (3b.3).** Above the instructions on a non-video part: the
+  format name (gold), then one tile per set parameter, with the admin's words
+  (Lengd, Bil, Vinna, Hvíld, Hringir, Tímamörk, Endurtekningar). "sets" shows
+  none. Total time follows the format: AMRAP = length, EMOM = interval ×
+  rounds, Tabata/interval = (work + rest) × rounds, rounds = exercise sum ×
+  rounds + rest between rounds; sets = the exercise sum. For time / ladder /
+  chipper have only a cap, so no total — the cap is a tile. All in
+  `formatSummary` (`lib/dayLogic.ts`), which `partTotalSeconds` uses.
+- **Grouping (3b.4).** Consecutive exercise blocks with the same `group_label`
+  are framed together, labelled A1, A2…; a text block or another label breaks
+  the run; a label on one block alone is not a group. Ungrouped exercises are
+  numbered 1, 2… among themselves. The last block's `rest_sec` is shown as the
+  rest after the group. `layoutPartBlocks` in `lib/dayLogic.ts`.
+- **Dark-theme `--success` is green `#3FBF8F`** (was slate `#708893`, which
+  made a finished part look disabled). 7.95:1 on `--bg`, 5.21:1 worst case on
+  its 12% tint — above WCAG AA. Decided by Daniel 2026-10-06.
 - **Parts completed as a whole** (`isWholePart`: a video part, or a part with
   no exercise blocks) get one "Merkja lokið" under the content, writing
   `task_progress` (`components/day/useTaskProgress.ts`). A video part's tagged

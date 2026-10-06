@@ -1,7 +1,7 @@
 // Pure day-view logic, shared by server pages and client components.
 // No server or browser imports here.
 
-import type { DbTask } from "@/types";
+import type { DbTask, TaskFormat } from "@/types";
 
 const DAY_ABBREVS = ["MÁN", "ÞRI", "MIÐ", "FIM", "FÖS", "LAU", "SUN"];
 
@@ -112,21 +112,123 @@ export function isWholePart(part: Pick<DbTask, "blocks" | "video_url">): boolean
  * Decided) — null until it is saved on upload or backfilled. Its reference
  * exercises are never summed; that would show the wrong number.
  *
- * Otherwise: Σ duration_sec × max(1, sets) + rest_sec over the exercise
- * blocks, null when none has a duration.
+ * Otherwise, from the format (formatSummary) when the format fixes the time —
+ * AMRAP, EMOM, Tabata, interval, rounds. "sets" (and "rounds" without a fixed
+ * exercise time) falls back to the exercise sum:
+ * Σ duration_sec × max(1, sets) + rest_sec, null when no block has a duration.
+ * For time / ladder / chipper end when the work is done: only a cap is known,
+ * so null — the cap is shown as a tile instead.
  */
 export function partTotalSeconds(
-  part: Pick<DbTask, "blocks" | "video_url" | "video_duration_sec">
+  part: Pick<
+    DbTask,
+    "blocks" | "video_url" | "video_duration_sec" | "format" | "work_sec" | "rest_sec" | "rounds" | "time_cap_sec" | "rep_scheme"
+  >
 ): number | null {
   if (part.video_url) {
     return part.video_duration_sec && part.video_duration_sec > 0 ? part.video_duration_sec : null;
   }
+  return formatSummary(part).totalSec;
+}
+
+/** Σ duration_sec × max(1, sets) + rest_sec over the exercise blocks; null when none has a duration. */
+function exerciseSumSeconds(part: Pick<DbTask, "blocks">): number | null {
   const ex = exerciseBlocks(part);
   if (!ex.some((b) => (b.duration_sec ?? 0) > 0)) return null;
   return ex.reduce(
     (sum, b) => sum + (b.duration_sec ?? 0) * parseSets(b.sets) + (b.rest_sec ?? 0),
     0
   );
+}
+
+// ─── Format ───────────────────────────────────────────────────────────────────
+
+export interface FormatTile {
+  key: string;
+  /** "12 mín", "20 sek.", "8", "21-15-9" */
+  value: string;
+  /** "Lengd", "Vinna", "Hringir"… — the same words as the admin's TaskSettings. */
+  label: string;
+}
+
+export interface FormatSummary {
+  /** "AMRAP", "EMOM"… — null for "sets", which shows no tiles. */
+  name: string | null;
+  tiles: FormatTile[];
+  totalSec: number | null;
+}
+
+const FORMAT_NAMES: Record<TaskFormat, string | null> = {
+  sets: null,
+  amrap: "AMRAP",
+  emom: "EMOM",
+  tabata: "Tabata",
+  for_time: "Á tíma",
+  rounds: "Hringir",
+  interval: "Interval",
+  ladder: "Stigi",
+  chipper: "Chipper",
+};
+
+const pos = (n: number | null | undefined): n is number => typeof n === "number" && n > 0;
+
+/**
+ * What the part page shows above the instructions: the format's name and one
+ * tile per parameter that is set, plus the total time the format implies.
+ * Parameters per format mirror components/admin/TaskSettings.tsx.
+ */
+export function formatSummary(
+  part: Pick<DbTask, "blocks" | "format" | "work_sec" | "rest_sec" | "rounds" | "time_cap_sec" | "rep_scheme">
+): FormatSummary {
+  const { format, work_sec: work, rest_sec: rest, rounds, time_cap_sec: cap } = part;
+  const scheme = part.rep_scheme?.trim() || null;
+  const tiles: FormatTile[] = [];
+  const add = (key: string, value: string, label: string) => tiles.push({ key, value, label });
+  let totalSec: number | null = null;
+
+  switch (format) {
+    case "amrap":
+      if (pos(cap)) {
+        add("cap", formatDurationLabel(cap), "Lengd");
+        totalSec = cap;
+      }
+      break;
+    case "emom":
+      if (pos(work)) add("work", formatDurationLabel(work), "Bil");
+      if (pos(rounds)) add("rounds", String(rounds), "Hringir");
+      if (pos(work) && pos(rounds)) totalSec = work * rounds;
+      break;
+    case "tabata":
+    case "interval":
+      if (pos(work)) add("work", formatDurationLabel(work), "Vinna");
+      if (pos(rest)) add("rest", formatDurationLabel(rest), "Hvíld");
+      if (pos(rounds)) add("rounds", String(rounds), "Hringir");
+      if (pos(work) && pos(rounds)) totalSec = (work + (rest ?? 0)) * rounds;
+      break;
+    case "rounds": {
+      if (pos(rounds)) add("rounds", String(rounds), "Hringir");
+      if (pos(rest)) add("rest", formatDurationLabel(rest), "Hvíld");
+      const perRound = exerciseSumSeconds(part);
+      if (perRound !== null && pos(rounds)) totalSec = perRound * rounds + (rest ?? 0) * (rounds - 1);
+      break;
+    }
+    case "for_time":
+      if (pos(rounds)) add("rounds", String(rounds), "Hringir");
+      if (pos(cap)) add("cap", formatDurationLabel(cap), "Tímamörk");
+      break;
+    case "ladder":
+      if (scheme) add("scheme", scheme, "Endurtekningar");
+      if (pos(cap)) add("cap", formatDurationLabel(cap), "Tímamörk");
+      break;
+    case "chipper":
+      if (pos(cap)) add("cap", formatDurationLabel(cap), "Tímamörk");
+      break;
+    case "sets":
+    default:
+      totalSec = exerciseSumSeconds(part);
+  }
+
+  return { name: FORMAT_NAMES[format] ?? null, tiles, totalSec };
 }
 
 /** 540 → "~9 mín". Never "~0 mín". */
@@ -139,6 +241,61 @@ export function formatDurationLabel(sec: number): string {
   if (sec < 60) return `${sec} sek.`;
   if (sec % 60 === 0) return `${sec / 60} mín`;
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")} mín`;
+}
+
+// ─── Grouping (superset / complex) ────────────────────────────────────────────
+
+type LayoutBlock = DbTask["blocks"][number];
+
+export type PartLayoutItem =
+  | { kind: "note"; block: LayoutBlock }
+  | { kind: "exercise"; block: LayoutBlock; label: string }
+  | {
+      kind: "group";
+      /** "A" — the block's group_label, trimmed and upper-cased. */
+      label: string;
+      items: { block: LayoutBlock; label: string }[];
+      /** Rest after the whole group: the last block's rest_sec (DbBlock.rest_sec). */
+      restSec: number | null;
+    };
+
+/**
+ * The part's blocks in order, with consecutive exercise blocks that share a
+ * group_label gathered into one group labelled A1, A2… (superset / complex —
+ * a grouping, not a format; STATUS.md → Decided). A run is broken by a text
+ * block or a different label; a label on a single block is not a group.
+ * Ungrouped exercises are numbered 1, 2… among themselves.
+ * `skipText` drops text blocks (they were used as the Leiðbeiningar fallback).
+ */
+export function layoutPartBlocks(blocks: readonly LayoutBlock[], skipText: boolean): PartLayoutItem[] {
+  const out: PartLayoutItem[] = [];
+  let ungrouped = 0;
+  const key = (b: LayoutBlock) => (b.type === "exercise" ? b.group_label?.trim().toUpperCase() || null : null);
+
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    if (block.type === "text") {
+      if (!skipText && block.content?.trim()) out.push({ kind: "note", block });
+      continue;
+    }
+    const label = key(block);
+    let j = i;
+    while (label && j + 1 < blocks.length && key(blocks[j + 1]) === label) j++;
+    if (label && j > i) {
+      const run = blocks.slice(i, j + 1);
+      out.push({
+        kind: "group",
+        label,
+        items: run.map((b, n) => ({ block: b, label: `${label}${n + 1}` })),
+        restSec: pos(run[run.length - 1].rest_sec) ? run[run.length - 1].rest_sec : null,
+      });
+      i = j;
+    } else {
+      ungrouped += 1;
+      out.push({ kind: "exercise", block, label: String(ungrouped) });
+    }
+  }
+  return out;
 }
 
 // ─── Instructions ─────────────────────────────────────────────────────────────

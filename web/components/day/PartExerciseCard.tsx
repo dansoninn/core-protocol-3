@@ -24,7 +24,8 @@ export default function PartExerciseCard({
   referenceOnly = false,
 }: {
   block: DbBlock;
-  number: number;
+  /** "3", or "A1" inside a superset / complex. */
+  number: number | string;
   done: boolean;
   saving: boolean;
   onToggleDone: (e: MouseEvent) => void;

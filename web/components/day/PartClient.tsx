@@ -3,12 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Check, ChevronLeft } from "lucide-react";
-import type { DbExercise, DbTask } from "@/types";
+import type { DbBlock, DbExercise, DbTask } from "@/types";
 import {
   exerciseBlocks,
   formatApproxMinutes,
+  formatSummary,
   isPartDone,
   isWholePart,
+  layoutPartBlocks,
   partInstructions,
   partProgress,
   partTotalSeconds,
@@ -18,6 +20,8 @@ import { useBlockProgress } from "@/components/day/useBlockProgress";
 import { useTaskProgress } from "@/components/day/useTaskProgress";
 import DayStrip from "@/components/day/DayStrip";
 import DayProgress from "@/components/day/DayProgress";
+import ExerciseGroup from "@/components/day/ExerciseGroup";
+import FormatTiles from "@/components/day/FormatTiles";
 import InstructionsBox from "@/components/day/InstructionsBox";
 import NoteRow from "@/components/day/NoteRow";
 import PartExerciseCard from "@/components/day/PartExerciseCard";
@@ -67,8 +71,23 @@ export default function PartClient({
   const isVideo = Boolean(part.video_url);
   const whole = isWholePart(part);
   const wholeDone = completedTasks.has(part.id);
+  // A video part's time and pace come from the video; no format tiles.
+  const format = isVideo ? null : formatSummary(part);
 
-  let exerciseNumber = 0;
+  // Text blocks used as the Leiðbeiningar fallback are not repeated inline.
+  const layout = layoutPartBlocks(part.blocks, instructions.fromTextBlocks);
+  const renderCard = (block: DbBlock, label: string) => (
+    <PartExerciseCard
+      key={block.id}
+      block={block}
+      number={label}
+      done={completedIds.has(block.id)}
+      saving={saving === block.id}
+      onToggleDone={(e) => toggle(e, block.id)}
+      onPlay={setActiveExercise}
+      referenceOnly={isVideo}
+    />
+  );
 
   return (
     <div style={{ background: "var(--bg)", minHeight: "100vh" }}>
@@ -127,6 +146,8 @@ export default function PartClient({
           </div>
         )}
 
+        {format && <FormatTiles summary={format} />}
+
         {instructions.text && <InstructionsBox text={instructions.text} />}
 
         {exercises.length > 0 && (
@@ -143,24 +164,20 @@ export default function PartClient({
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: exercises.length > 0 ? 0 : 16 }}>
-          {part.blocks.map((block) => {
-            if (block.type === "text") {
-              // Used as the Leiðbeiningar fallback → don't repeat it here
-              if (instructions.fromTextBlocks || !block.content?.trim()) return null;
-              return <NoteRow key={block.id} text={block.content.trim()} />;
+          {layout.map((item) => {
+            if (item.kind === "note") {
+              return <NoteRow key={item.block.id} text={item.block.content!.trim()} />;
             }
-            exerciseNumber += 1;
+            if (item.kind === "exercise") return renderCard(item.block, item.label);
             return (
-              <PartExerciseCard
-                key={block.id}
-                block={block}
-                number={exerciseNumber}
-                done={completedIds.has(block.id)}
-                saving={saving === block.id}
-                onToggleDone={(e) => toggle(e, block.id)}
-                onPlay={setActiveExercise}
-                referenceOnly={isVideo}
-              />
+              <ExerciseGroup
+                key={item.items[0].block.id}
+                label={item.label}
+                count={item.items.length}
+                restSec={item.restSec}
+              >
+                {item.items.map((g) => renderCard(g.block, g.label))}
+              </ExerciseGroup>
             );
           })}
         </div>
