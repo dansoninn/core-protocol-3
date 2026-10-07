@@ -7,6 +7,7 @@ import RowMenu, { type MenuItem } from "@/components/admin/builder/RowMenu";
 import { Chevron, clock } from "@/components/admin/builder/ui";
 import { dayReadiness, partReadiness, weekReadiness, type Readiness } from "@/components/admin/builder/types";
 import { PartIconBubble } from "@/lib/partIcons";
+import { SortableList } from "@/components/admin/builder/Sortable";
 
 function Status({ state, title }: { state: Readiness; title?: string }) {
   const t =
@@ -25,7 +26,9 @@ function Row({
   chevron,
   children,
   menu,
+  handle,
 }: {
+  handle?: ReactNode;
   depth: number;
   selected: boolean;
   onSelect: () => void;
@@ -40,7 +43,8 @@ function Row({
       tabIndex={0}
       onClick={onSelect}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
+        // Only the row itself — not the grip (Space picks it up) or the menu
+        if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) {
           e.preventDefault();
           onSelect();
         }
@@ -50,7 +54,7 @@ function Row({
         alignItems: "center",
         gap: 8,
         marginLeft: depth * 14,
-        padding: "8px 8px 8px 6px",
+        padding: "8px 6px 8px 2px",
         borderRadius: 10,
         cursor: "pointer",
         background: selected ? "var(--accent-dim)" : "transparent",
@@ -59,6 +63,7 @@ function Row({
       onMouseEnter={(e) => !selected && (e.currentTarget.style.background = "var(--surface2)")}
       onMouseLeave={(e) => !selected && (e.currentTarget.style.background = "transparent")}
     >
+      {handle}
       {chevron ? (
         <button
           type="button"
@@ -170,7 +175,8 @@ export default function Tree() {
           <p style={{ padding: 16, fontSize: 13, color: "var(--muted2)" }}>Engar vikur enn — „+ Vika“ efst.</p>
         )}
 
-        {b.weeks.map((week, wi) => {
+        <SortableList items={b.weeks} gap={2} onReorder={(ids) => b.reorder("weeks", null, ids)}>
+        {(week, weekHandle, wi) => {
           const wOpen = b.expandedWeeks.has(week.id);
           const weekMenu: MenuItem[] = [
             { label: "Færa upp", icon: <ArrowUp size={14} />, disabled: wi === 0, onSelect: () => b.moveWeek(week.id, "up") },
@@ -181,6 +187,7 @@ export default function Tree() {
             <div key={week.id} style={{ marginBottom: 2 }}>
               <Row
                 depth={0}
+                handle={weekHandle}
                 selected={b.sel?.kind === "week" && b.sel.id === week.id}
                 onSelect={() => {
                   b.select({ kind: "week", id: week.id });
@@ -199,7 +206,8 @@ export default function Tree() {
 
               {wOpen && (
                 <div style={{ position: "relative" }}>
-                  {week.days.map((day, di) => {
+                  <SortableList items={week.days} gap={0} onReorder={(ids) => b.reorder("days", week.id, ids)}>
+                  {(day, dayHandle, di) => {
                     const dOpen = b.expandedDays.has(day.id);
                     const dayMenu: MenuItem[] = [
                       { label: "Færa upp", icon: <ArrowUp size={14} />, disabled: di === 0, onSelect: () => b.moveDay(day.id, "up") },
@@ -211,6 +219,7 @@ export default function Tree() {
                       <div key={day.id}>
                         <Row
                           depth={1}
+                          handle={dayHandle}
                           selected={b.sel?.kind === "day" && b.sel.id === day.id}
                           onSelect={() => b.select({ kind: "day", id: day.id })}
                           chevron={{ open: dOpen, onToggle: () => b.toggleDay(day.id) }}
@@ -225,7 +234,8 @@ export default function Tree() {
 
                         {dOpen && (
                           <div style={{ marginLeft: 22, borderLeft: "1px solid var(--border)", paddingLeft: 4 }}>
-                            {day.tasks.map((task, ti) => {
+                            <SortableList items={day.tasks} gap={0} onReorder={(ids) => b.reorder("tasks", day.id, ids)}>
+                            {(task, partHandle, ti) => {
                               const exCount = task.blocks.filter((x) => x.type === "exercise").length;
                               const partMenu: MenuItem[] = [
                                 { label: "Færa upp", icon: <ArrowUp size={14} />, disabled: ti === 0, onSelect: () => b.moveTask(task.id, "up") },
@@ -237,6 +247,7 @@ export default function Tree() {
                                 <Row
                                   key={task.id}
                                   depth={0}
+                                  handle={partHandle}
                                   selected={b.sel?.kind === "part" && b.sel.id === task.id}
                                   onSelect={() => b.select({ kind: "part", id: task.id })}
                                   menu={<RowMenu label={task.name} items={partMenu} />}
@@ -252,19 +263,22 @@ export default function Tree() {
                                   <Status state={partReadiness(task)} />
                                 </Row>
                               );
-                            })}
+                            }}
+                            </SortableList>
                             <AddLink depth={0} onClick={() => b.addTask(day.id, day.tasks.length)}>Liður</AddLink>
                           </div>
                         )}
                       </div>
                     );
-                  })}
+                  }}
+                  </SortableList>
                   <AddLink depth={1} onClick={() => b.addDay(week.id, week.days.length)}>Dagur</AddLink>
                 </div>
               )}
             </div>
           );
-        })}
+        }}
+        </SortableList>
       </div>
     </div>
   );

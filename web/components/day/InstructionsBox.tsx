@@ -1,4 +1,5 @@
 import { ChevronDown } from "lucide-react";
+import { Markdown } from "@/lib/markdown";
 
 /** Collapsible "Leiðbeiningar". Native <details>, so it needs no client JS. */
 export default function InstructionsBox({ text }: { text: string }) {
@@ -32,17 +33,15 @@ export default function InstructionsBox({ text }: { text: string }) {
         Leiðbeiningar
         <ChevronDown size={16} className="transition-transform group-open:rotate-180" />
       </summary>
-      <p
+      <Markdown
+        text={text}
         style={{
           padding: "0 16px 14px",
           fontSize: 14,
           lineHeight: 1.6,
           color: "var(--text)",
-          whiteSpace: "pre-wrap",
         }}
-      >
-        {text}
-      </p>
+      />
     </details>
   );
 }

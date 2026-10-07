@@ -84,7 +84,10 @@ Course Builder (`components/admin/builder/`): three panes — tree (left),
 editor for the selected week/day/part (middle), live phone preview (right,
 the real PartClient/DayOverview with `preview`). All builder state and every
 write live in `builder/state.ts`; components read it with `useBuilder()`.
-Part icons/colours: `lib/partIcons.tsx`.
+Part icons/colours: `lib/partIcons.tsx`. Reorder by drag (`builder/Sortable.tsx`,
+dnd-kit) or ↑↓; both end in `reorder` / `move*` in `builder/state.ts`.
+- Coach text (part instructions, text blocks) is markdown, rendered by
+  `lib/markdown.tsx` as React elements — never `dangerouslySetInnerHTML`.
 - `/api/*` is not covered by the middleware. Every admin API route (the Mux
   routes) must start with `requireAdminApi()` from `lib/requireAdmin.ts`.
 

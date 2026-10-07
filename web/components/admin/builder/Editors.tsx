@@ -9,6 +9,8 @@ import IconPicker from "@/components/admin/builder/IconPicker";
 import TaskSettings, { VideoPartHint } from "@/components/admin/TaskSettings";
 import BlockPrescription from "@/components/admin/BlockPrescription";
 import QuickTag from "@/components/admin/QuickTag";
+import MarkdownField from "@/components/admin/MarkdownField";
+import { SortableList } from "@/components/admin/builder/Sortable";
 import PrescriptionList from "@/components/day/PrescriptionList";
 import { TextArea, inputStyle } from "@/components/admin/fields";
 import { formatDurationLabel, formatSummary } from "@/lib/dayLogic";
@@ -99,7 +101,9 @@ function ChildRow({
   meta,
   status,
   moveLabel,
+  handle,
 }: {
+  handle?: ReactNode;
   moveLabel: string;
   index: number;
   count: number;
@@ -124,8 +128,9 @@ function ChildRow({
           onOpen();
         }
       }}
-      style={{ ...card, display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", cursor: "pointer" }}
+      style={{ ...card, display: "flex", alignItems: "center", gap: 10, padding: "12px 14px 12px 8px", cursor: "pointer" }}
     >
+      {handle}
       <MoveButtons label={moveLabel} canUp={index > 0} canDown={index < count - 1} onUp={() => onMove("up")} onDown={() => onMove("down")} />
       {lead}
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -177,9 +182,11 @@ function WeekEditor({ week }: { week: BWeek }) {
 
       <SectionLabel>Dagar ({week.days.length})</SectionLabel>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {week.days.map((day, i) => (
+        <SortableList items={week.days} onReorder={(ids) => b.reorder("days", week.id, ids)}>
+        {(day, handle, i) => (
           <ChildRow
             key={day.id}
+            handle={handle}
             moveLabel="dag"
             index={i}
             count={week.days.length}
@@ -193,7 +200,8 @@ function WeekEditor({ week }: { week: BWeek }) {
               </>
             }
           />
-        ))}
+        )}
+        </SortableList>
         <AddButton onClick={() => b.addDay(week.id, week.days.length)}>Bæta við degi</AddButton>
       </div>
     </div>
@@ -234,12 +242,14 @@ function DayEditor({ week, day }: { week: BWeek; day: BDay }) {
 
       <SectionLabel>Liðir dagsins ({day.tasks.length})</SectionLabel>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {day.tasks.map((task, i) => {
+        <SortableList items={day.tasks} onReorder={(ids) => b.reorder("tasks", day.id, ids)}>
+        {(task, handle, i) => {
           const exCount = task.blocks.filter((x) => x.type === "exercise").length;
           const fmt = formatSummary({ ...task, blocks: [] }).name;
           return (
             <ChildRow
               key={task.id}
+              handle={handle}
               moveLabel="lið"
               index={i}
               count={day.tasks.length}
@@ -257,7 +267,8 @@ function DayEditor({ week, day }: { week: BWeek; day: BDay }) {
               }
             />
           );
-        })}
+        }}
+        </SortableList>
         <AddButton onClick={() => b.addTask(day.id, day.tasks.length)}>Bæta við lið</AddButton>
       </div>
     </div>
@@ -435,9 +446,11 @@ function PartEditor({ week, day, task }: { week: BWeek; day: BDay; task: BTask }
             Engar æfingar enn — „+ Æfing“ eða „Texti“ hér að ofan.
           </p>
         )}
-        {task.blocks.map((block, i) => (
-          <BlockCard key={block.id} block={block} index={i} count={task.blocks.length} siblings={task.blocks} />
-        ))}
+        <SortableList items={task.blocks} onReorder={(ids) => b.reorder("blocks", task.id, ids)}>
+          {(block, handle, i) => (
+            <BlockCard key={block.id} block={block} index={i} count={task.blocks.length} siblings={task.blocks} handle={handle} />
+          )}
+        </SortableList>
       </div>
 
       {reference && (
@@ -494,7 +507,19 @@ function blockBadge(blocks: BBlock[], index: number): string {
   return String(n);
 }
 
-function BlockCard({ block, index, count, siblings }: { block: BBlock; index: number; count: number; siblings: BBlock[] }) {
+function BlockCard({
+  block,
+  index,
+  count,
+  siblings,
+  handle,
+}: {
+  block: BBlock;
+  index: number;
+  count: number;
+  siblings: BBlock[];
+  handle: ReactNode;
+}) {
   const b = useBuilder();
   const [editing, setEditing] = useState(false);
   const [swapQuery, setSwapQuery] = useState<string | null>(null);
@@ -519,17 +544,17 @@ function BlockCard({ block, index, count, siblings }: { block: BBlock; index: nu
 
   if (block.type === "text") {
     return (
-      <div style={{ ...card, display: "flex", gap: 12, padding: 12, background: "var(--surface2)" }}>
+      <div style={{ ...card, display: "flex", gap: 10, padding: "12px 12px 12px 6px", background: "var(--surface2)" }}>
+        {handle}
         <MoveButtons label="texta" canUp={index > 0} canDown={index < count - 1} onUp={() => b.moveBlock(block.id, "up", siblings)} onDown={() => b.moveBlock(block.id, "down", siblings)} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: "var(--muted2)", marginBottom: 6 }}>TEXTI</p>
-          <textarea
+          <MarkdownField
             key={block.id}
-            defaultValue={block.content ?? ""}
-            aria-label="Texti"
-            onBlur={(e) => e.target.value !== (block.content ?? "") && b.updateBlockContent(block.id, e.target.value)}
+            value={block.content}
+            onSave={(content) => b.updateBlockContent(block.id, content ?? "")}
             placeholder="Texti…"
-            style={{ ...inputStyle, width: "100%", minHeight: 64, resize: "vertical", lineHeight: 1.5 }}
+            minHeight={64}
           />
         </div>
         {actions}
@@ -540,7 +565,8 @@ function BlockCard({ block, index, count, siblings }: { block: BBlock; index: nu
   const q = (swapQuery ?? "").trim().toLowerCase();
   return (
     <div style={{ ...card, borderColor: editing ? "var(--accent-line)" : "var(--border)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 12px 12px 6px" }}>
+        {handle}
         <MoveButtons label="æfingu" canUp={index > 0} canDown={index < count - 1} onUp={() => b.moveBlock(block.id, "up", siblings)} onDown={() => b.moveBlock(block.id, "down", siblings)} />
         <div style={{ position: "relative" }}>
           <Thumb playbackId={ex?.mux_playback_id} />

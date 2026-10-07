@@ -4,11 +4,11 @@ import type { TaskFormat } from "@/types";
 import {
   DurationInput,
   IntInput,
-  TextArea,
   TextInput,
   inputStyle,
   labelStyle,
 } from "@/components/admin/fields";
+import MarkdownField from "@/components/admin/MarkdownField";
 
 export interface TaskSettingsValue {
   instructions: string | null;
@@ -104,7 +104,7 @@ export default function TaskSettings({
     >
       <div>
         <span style={labelStyle}>Leiðbeiningar</span>
-        <TextArea
+        <MarkdownField
           value={task.instructions}
           onSave={(instructions) => onSave({ instructions })}
           placeholder="Leiðbeiningar fyrir þennan lið…"

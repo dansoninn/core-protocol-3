@@ -95,9 +95,8 @@ Shipped earlier:
   migration-task-reference.sql) before deploying `builder-v3`.** Adds
   `tasks.icon` (TEXT, null = default). Reads tolerate the missing column;
   choosing an icon in the builder fails until it runs.
-- **Course builder — later:** drag-to-reorder (dnd-kit; arrows and the ⋮
-  menu do it today), markdown in instructions. "Sýnilegt" per part/exercise
-  and a "% lokið" bar were considered and dropped (Daniel, 2026-10-07).
+- **"Sýnilegt" per part/exercise and a "% lokið" bar** were considered and
+  dropped (Daniel, 2026-10-07).
 - **`web/migration-task-reference.sql` — pending, Daniel runs it before
   deploying branch `builder-v2`.** Adds `tasks.exercises_are_reference`
   (BOOLEAN NOT NULL DEFAULT TRUE). The app reads a missing column as TRUE,
@@ -109,6 +108,11 @@ Shipped earlier:
 
 ## Unverified
 
+- **Branch `builder-v4` (drag-to-reorder, markdown).** Build passes;
+  markdown parser checked with assertions (Icelandic letters, "2*3*4",
+  "10/hlið * 2", "a_b_c" and javascript: links stay plain); a block drag in
+  headless Chromium wrote exactly the two changed `order_index` rows; the
+  preview renders bold, italic and both list kinds. Not run against real data.
 - **Branch `builder-v3` (three panes).** Build passes; rendered in headless
   Chromium at 1440 and 1280 px with mocked Supabase/Mux: part, day, video
   part, icon picker, live preview. Not run against real data; the preview's
@@ -252,6 +256,18 @@ Shipped earlier:
   frame — the real `PartClient` / `DayOverview` with `preview` (no writes;
   links select inside the builder), collapsible, hidden by default under
   1400 px. All state and writes in `builder/state.ts` (`useBuilder()`).
+- **Drag to reorder** (`@dnd-kit/core` + `sortable`, `builder/Sortable.tsx`):
+  a grip on every row — weeks, days and parts in the tree, days in a week,
+  parts in a day, blocks in a part. Only within the same parent. Keyboard:
+  focus the grip, Space, arrows, Space. Writes order_index = position for the
+  rows that changed (`reorder` in `builder/state.ts`), which also repairs
+  duplicate indexes. The ↑↓ buttons and the ⋮ menu still work.
+- **Markdown in coach text** (`lib/markdown.tsx`): **bold**, *italic*,
+  bullet and numbered lists, https links, paragraphs — rendered as React
+  elements, never HTML. Used for part instructions and text blocks (user
+  side: `InstructionsBox`, `NoteRow`). Editor: `components/admin/MarkdownField`
+  with a toolbar (B, I, lists, link) and Ctrl/⌘+B / I. Plain text renders as
+  before; italic markers only count at word edges.
 - **Part icon and colour** (`lib/partIcons.tsx`): the coach picks one of 21
   icons and one of 9 colours (`tasks.icon`, existing `tasks.color`). Shown in
   the tree, the editors and on the user's part page.

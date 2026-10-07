@@ -1,7 +1,10 @@
+import { Markdown } from "@/lib/markdown";
+
 /** A text block shown inline among the exercises (when the part has its own instructions). */
 export default function NoteRow({ text }: { text: string }) {
   return (
-    <p
+    <Markdown
+      text={text}
       style={{
         padding: "10px 14px",
         fontSize: 13,
@@ -10,10 +13,7 @@ export default function NoteRow({ text }: { text: string }) {
         background: "var(--surface2)",
         borderLeft: "2px solid var(--accent-line)",
         borderRadius: 10,
-        whiteSpace: "pre-wrap",
       }}
-    >
-      {text}
-    </p>
+    />
   );
 }

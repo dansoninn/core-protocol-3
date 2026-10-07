@@ -777,6 +777,56 @@ export function useBuilderState() {
     );
   };
 
+  // ── Drag-to-reorder ──────────────────────────────────────────────────────────
+
+  /**
+   * Put a parent's children in `orderedIds` order: order_index becomes the
+   * position (0, 1, 2…), which also repairs duplicate indexes in older data.
+   * Local state first, then only the rows whose index changed; any failure
+   * reloads the course so the screen matches the database.
+   */
+  const reorder = async (level: "weeks" | "days" | "tasks" | "blocks", parentId: string | null, orderedIds: string[]) => {
+    const pos = new Map(orderedIds.map((id, i) => [id, i]));
+    const current: { id: string; order_index: number }[] =
+      level === "weeks"
+        ? weeks
+        : level === "days"
+        ? weeks.find((w) => w.id === parentId)?.days ?? []
+        : level === "tasks"
+        ? weeks.flatMap((w) => w.days).find((d) => d.id === parentId)?.tasks ?? []
+        : weeks.flatMap((w) => w.days.flatMap((d) => d.tasks)).find((t) => t.id === parentId)?.blocks ?? [];
+    const changed = current.filter((x) => pos.has(x.id) && pos.get(x.id) !== x.order_index);
+    if (changed.length === 0) return;
+
+    const sortBy = <T extends { id: string; order_index: number }>(list: T[]): T[] =>
+      list
+        .map((x) => (pos.has(x.id) ? { ...x, order_index: pos.get(x.id)! } : x))
+        .sort((a, c) => a.order_index - c.order_index);
+
+    setWeeks((prev) => {
+      if (level === "weeks") return sortBy(prev);
+      return prev.map((w) => {
+        if (level === "days") return w.id === parentId ? { ...w, days: sortBy(w.days) } : w;
+        return {
+          ...w,
+          days: w.days.map((d) => {
+            if (level === "tasks") return d.id === parentId ? { ...d, tasks: sortBy(d.tasks) } : d;
+            return { ...d, tasks: d.tasks.map((t) => (t.id === parentId ? { ...t, blocks: sortBy(t.blocks) } : t)) };
+          }),
+        };
+      });
+    });
+
+    const results = await Promise.all(
+      changed.map((x) => track(supabase.from(level).update({ order_index: pos.get(x.id)! }).eq("id", x.id)))
+    );
+    const failed = results.find((r) => r.error);
+    if (failed?.error) {
+      show(failed.error.message, "error");
+      loadWeeks(selectedCourseId);
+    }
+  };
+
   // ── Lookups ──────────────────────────────────────────────────────────────────
   const findWeek = (id: string) => weeks.find((w) => w.id === id) ?? null;
   const findDay = (id: string) => {
@@ -822,7 +872,7 @@ export function useBuilderState() {
     moveDay, addDay, updateDayField, deleteDay, duplicateDay,
     addTask, deleteTask, moveTask, duplicateTask, updateTaskField,
     attachTaskVideo, removeTaskVideo, videoUsedBy, uploadTaskVideoMux, taskVideoStatus,
-    addBlock, deleteBlock, duplicateBlock, moveBlock,
+    addBlock, deleteBlock, duplicateBlock, moveBlock, reorder,
     updateBlockContent, updateBlockExercise, clearBlockExercise, updateBlockFields,
   };
 }
