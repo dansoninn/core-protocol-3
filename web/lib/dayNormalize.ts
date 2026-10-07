@@ -129,6 +129,7 @@ export function normalizePart(raw: unknown): DbTask {
     // DEFAULT TRUE in the database; before migration-task-reference.sql runs
     // the column is absent and every video part keeps today's behaviour.
     exercises_are_reference: bool(r, "exercises_are_reference", true),
+    icon: text(r, "icon", "tasks"),
     blocks: blocks.sort((a, b) => a.order_index - b.order_index),
   };
 }

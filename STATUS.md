@@ -91,6 +91,13 @@ Shipped earlier:
   `rgba(255,255,255,…)` are borders/scrims on photos or blurred chips
   (course hero, course cards), which are correct in both themes.
 
+- **`web/migration-task-icon.sql` — pending, Daniel runs it (with
+  migration-task-reference.sql) before deploying `builder-v3`.** Adds
+  `tasks.icon` (TEXT, null = default). Reads tolerate the missing column;
+  choosing an icon in the builder fails until it runs.
+- **Course builder — later:** drag-to-reorder (dnd-kit; arrows and the ⋮
+  menu do it today), markdown in instructions. "Sýnilegt" per part/exercise
+  and a "% lokið" bar were considered and dropped (Daniel, 2026-10-07).
 - **`web/migration-task-reference.sql` — pending, Daniel runs it before
   deploying branch `builder-v2`.** Adds `tasks.exercises_are_reference`
   (BOOLEAN NOT NULL DEFAULT TRUE). The app reads a missing column as TRUE,
@@ -102,6 +109,10 @@ Shipped earlier:
 
 ## Unverified
 
+- **Branch `builder-v3` (three panes).** Build passes; rendered in headless
+  Chromium at 1440 and 1280 px with mocked Supabase/Mux: part, day, video
+  part, icon picker, live preview. Not run against real data; the preview's
+  Mux player cannot load in the sandbox.
 - **Branch `builder-v2`.** Build passes; the builder was rendered in headless
   Chromium with fixture data (Supabase and Mux responses mocked): collapsed,
   all open, a video part open, the video picker. Not run against real
@@ -229,7 +240,22 @@ Shipped earlier:
 - **A whole part's button follows `isPartDone`.** A video part done by its
   blocks alone (ticked before 3b.2) shows as done; "afmerkja" clears those
   block rows.
-- **Course builder v2 (branch `builder-v2`).** Clear levels: week (Bebas
+- **Course builder v3 — three panes** (`components/admin/builder/`, branch
+  `builder-v3`, replaces the v2 single column). Left: tree of weeks → days →
+  parts with icon, counts and a content status (green ✓ ready, gold ! needs
+  content, ○ empty — `partReadiness` in `builder/types.ts`) and a ⋮ menu
+  (move, duplicate, delete with confirm). Middle: the selected week, day or
+  part — breadcrumb, title edited in place, move arrows on the left; a part
+  shows its video and its format/instructions side by side, then exercise
+  cards (Mux thumbnail, A1/number badge, category, prescription, note;
+  Breyta opens the fields; Afrita; Eyða). Right: live preview in a phone
+  frame — the real `PartClient` / `DayOverview` with `preview` (no writes;
+  links select inside the builder), collapsible, hidden by default under
+  1400 px. All state and writes in `builder/state.ts` (`useBuilder()`).
+- **Part icon and colour** (`lib/partIcons.tsx`): the coach picks one of 21
+  icons and one of 9 colours (`tasks.icon`, existing `tasks.color`). Shown in
+  the tree, the editors and on the user's part page.
+- **Course builder v2 (branch `builder-v2`, superseded by v3).** Clear levels: week (Bebas
   title, "VIKA n"), day ("Dn" badge, left accent when open), part (colour bar,
   number), block. Every header is clickable to open/close; inputs and
   buttons inside it don't toggle. Move up/down sit on the left of every row

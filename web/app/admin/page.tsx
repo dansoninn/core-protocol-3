@@ -86,6 +86,15 @@ export default async function AdminPage({
   const currentTab = searchParams?.tab ?? null;
 
   // ── Tab view: skip dashboard data, just render tab content ────────────────
+  // The course builder fills the viewport with its own three panes and header
+  if (currentTab === "builder") {
+    return (
+      <div style={{ background: "var(--bg)", minHeight: "100vh", padding: 16 }}>
+        <AdminClient initialTab="builder" />
+      </div>
+    );
+  }
+
   if (currentTab && currentTab !== "dashboard") {
     return (
       <div style={{ background: "var(--bg)", minHeight: "100vh", padding: "32px 40px" }}>

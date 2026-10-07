@@ -16,7 +16,12 @@ import { createClient } from "@/lib/supabase/client";
  * this change. refresh() empties that cache; it does not remount this page or
  * reset its state.
  */
-export function useBlockProgress(userId: string, initialCompletedBlockIds: string[]) {
+export function useBlockProgress(
+  userId: string,
+  initialCompletedBlockIds: string[],
+  /** Course builder preview: toggles change local state only — nothing is written. */
+  preview = false
+) {
   const router = useRouter();
   const [completedIds, setCompletedIds] = useState<Set<string>>(
     new Set(initialCompletedBlockIds)
@@ -26,6 +31,15 @@ export function useBlockProgress(userId: string, initialCompletedBlockIds: strin
   const toggle = async (e: MouseEvent, blockId: string) => {
     e.preventDefault();
     if (saving) return;
+    if (preview) {
+      setCompletedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(blockId)) next.delete(blockId);
+        else next.add(blockId);
+        return next;
+      });
+      return;
+    }
     setSaving(blockId);
     const supabase = createClient();
     const isDone = completedIds.has(blockId);
@@ -74,6 +88,14 @@ export function useBlockProgress(userId: string, initialCompletedBlockIds: strin
     e.preventDefault();
     const ids = blockIds.filter((id) => completedIds.has(id));
     if (saving || ids.length === 0) return;
+    if (preview) {
+      setCompletedIds((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.delete(id));
+        return next;
+      });
+      return;
+    }
     setSaving(ids[0]);
     const supabase = createClient();
     const { error } = await supabase

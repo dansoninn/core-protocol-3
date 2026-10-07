@@ -11,7 +11,12 @@ import { createClient } from "@/lib/supabase/client";
  * write succeeds; one write at a time; router.refresh() afterwards so the day
  * overview is not served from Next's 30s client router cache.
  */
-export function useTaskProgress(userId: string, initialCompletedTaskIds: string[]) {
+export function useTaskProgress(
+  userId: string,
+  initialCompletedTaskIds: string[],
+  /** Course builder preview: toggles change local state only — nothing is written. */
+  preview = false
+) {
   const router = useRouter();
   const [completedTaskIds, setCompletedTaskIds] = useState<Set<string>>(
     new Set(initialCompletedTaskIds)
@@ -22,6 +27,15 @@ export function useTaskProgress(userId: string, initialCompletedTaskIds: string[
   const toggleTask = async (e: MouseEvent, taskId: string) => {
     e.preventDefault();
     if (savingTask) return;
+    if (preview) {
+      setCompletedTaskIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(taskId)) next.delete(taskId);
+        else next.add(taskId);
+        return next;
+      });
+      return;
+    }
     setSavingTask(taskId);
     setFailedTask(null);
     const supabase = createClient();

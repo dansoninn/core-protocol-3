@@ -67,6 +67,8 @@ export interface DbTask {
   // completed as a whole), FALSE = the video is an intro and exercises are
   // completed one by one.
   exercises_are_reference: boolean;
+  // migration-task-icon.sql — key into lib/partIcons.tsx; null = default.
+  icon: string | null;
   blocks: DbBlock[];
 }
 

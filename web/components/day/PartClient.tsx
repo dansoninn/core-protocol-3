@@ -28,6 +28,7 @@ import NoteRow from "@/components/day/NoteRow";
 import PartExerciseCard from "@/components/day/PartExerciseCard";
 import PrevNextNav from "@/components/day/PrevNextNav";
 import VideoPlayer from "@/components/VideoPlayer";
+import { PartIconBubble } from "@/lib/partIcons";
 import ExerciseVideoModal from "@/components/ExerciseVideoModal";
 
 /**
@@ -44,6 +45,7 @@ export default function PartClient({
   partIndex,
   initialCompletedBlockIds,
   completedTaskIds,
+  preview = false,
 }: {
   view: DayView;
   parts: DbTask[];
@@ -51,11 +53,14 @@ export default function PartClient({
   initialCompletedBlockIds: string[];
   /** Parts marked done as a whole (task_progress). */
   completedTaskIds: string[];
+  /** Course builder preview: progress toggles are local only. */
+  preview?: boolean;
 }) {
-  const { completedIds, saving, toggle, clear } = useBlockProgress(view.userId, initialCompletedBlockIds);
+  const { completedIds, saving, toggle, clear } = useBlockProgress(view.userId, initialCompletedBlockIds, preview);
   const { completedTaskIds: completedTasks, savingTask, failedTask, toggleTask } = useTaskProgress(
     view.userId,
-    completedTaskIds
+    completedTaskIds,
+    preview
   );
   const [activeExercise, setActiveExercise] = useState<DbExercise | null>(null);
 
@@ -116,6 +121,7 @@ export default function PartClient({
         </div>
 
         <header style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 20, marginBottom: 14 }}>
+          <PartIconBubble icon={part.icon} color={part.color} size={40} />
           <h1 style={{ fontFamily: "var(--font-bebas)", fontSize: 34, lineHeight: 1.05, color: "var(--text)", minWidth: 0 }}>
             {part.name}
           </h1>
