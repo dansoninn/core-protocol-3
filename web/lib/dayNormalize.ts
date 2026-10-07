@@ -59,6 +59,15 @@ function int(row: Row, column: string, table: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** Boolean column → boolean. Missing (column not migrated yet) or null → `fallback`. */
+function bool(row: Row, column: string, fallback: boolean): boolean {
+  const v = row[column];
+  if (typeof v === "boolean") return v;
+  if (v === "true") return true;
+  if (v === "false") return false;
+  return fallback;
+}
+
 function oneOf<T extends string>(row: Row, column: string, allowed: readonly T[]): T | null {
   const v = row[column];
   return typeof v === "string" && (allowed as readonly string[]).includes(v) ? (v as T) : null;
@@ -117,6 +126,9 @@ export function normalizePart(raw: unknown): DbTask {
     time_cap_sec: int(r, "time_cap_sec", "tasks"),
     rep_scheme: text(r, "rep_scheme", "tasks"),
     video_duration_sec: int(r, "video_duration_sec", "tasks"),
+    // DEFAULT TRUE in the database; before migration-task-reference.sql runs
+    // the column is absent and every video part keeps today's behaviour.
+    exercises_are_reference: bool(r, "exercises_are_reference", true),
     blocks: blocks.sort((a, b) => a.order_index - b.order_index),
   };
 }

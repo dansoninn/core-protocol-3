@@ -114,18 +114,31 @@ export function parseSets(sets: string | null | undefined): number {
 }
 
 /**
- * A part completed as a whole by one "Merkja lokið" (a task_progress row):
- * a video part — its tagged exercises are reference only — or a part with no
- * exercise blocks. Every other part is completed exercise by exercise.
+ * A video part whose tagged exercises are what the video shows — shown for
+ * reference, never completed one by one (tasks.exercises_are_reference).
  */
-export function isWholePart(part: Pick<DbTask, "blocks" | "video_url">): boolean {
-  return Boolean(part.video_url) || exerciseBlocks(part).length === 0;
+export function isReferenceVideoPart(
+  part: Pick<DbTask, "video_url" | "exercises_are_reference">
+): boolean {
+  return Boolean(part.video_url) && part.exercises_are_reference !== false;
+}
+
+/**
+ * A part completed as a whole by one "Merkja lokið" (a task_progress row):
+ * a reference video part, or a part with no exercise blocks. Every other part
+ * — including a video part whose video is only an intro — is completed
+ * exercise by exercise.
+ */
+export function isWholePart(
+  part: Pick<DbTask, "blocks" | "video_url" | "exercises_are_reference">
+): boolean {
+  return isReferenceVideoPart(part) || exerciseBlocks(part).length === 0;
 }
 
 /**
  * A part's total time in seconds, or null when it cannot be known.
  *
- * Video part: the Mux duration (tasks.video_duration_sec, STATUS.md →
+ * Reference video part: the Mux duration (tasks.video_duration_sec, STATUS.md →
  * Decided) — null until it is saved on upload or backfilled. Its reference
  * exercises are never summed; that would show the wrong number.
  *
@@ -139,10 +152,21 @@ export function isWholePart(part: Pick<DbTask, "blocks" | "video_url">): boolean
 export function partTotalSeconds(
   part: Pick<
     DbTask,
-    "blocks" | "video_url" | "video_duration_sec" | "format" | "work_sec" | "rest_sec" | "rounds" | "time_cap_sec" | "rep_scheme"
+    | "blocks"
+    | "video_url"
+    | "video_duration_sec"
+    | "exercises_are_reference"
+    | "format"
+    | "work_sec"
+    | "rest_sec"
+    | "rounds"
+    | "time_cap_sec"
+    | "rep_scheme"
   >
 ): number | null {
-  if (part.video_url) {
+  // A reference video part takes as long as its video. An intro video does
+  // not set the part's time — its exercises / format do.
+  if (isReferenceVideoPart(part)) {
     return part.video_duration_sec && part.video_duration_sec > 0 ? part.video_duration_sec : null;
   }
   return formatSummary(part).totalSec;

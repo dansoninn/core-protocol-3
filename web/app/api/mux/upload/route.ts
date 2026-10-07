@@ -1,19 +1,36 @@
 import Mux from '@mux/mux-node'
 import { NextResponse } from 'next/server'
+import { requireAdminApi } from '@/lib/requireAdmin'
 
 const mux = new Mux({
   tokenId: process.env.MUX_TOKEN_ID!,
   tokenSecret: process.env.MUX_TOKEN_SECRET!,
 })
 
-// Create a direct upload slot — client PUTs the file to the returned uploadUrl
-export async function POST() {
+// Create a direct upload slot — client PUTs the file to the returned uploadUrl.
+// Optional JSON body { title } names the asset in Mux (shown in the course
+// builder's video library); the file name is what the builder sends.
+export async function POST(request: Request) {
+  const denied = await requireAdminApi()
+  if (denied) return denied
+
+  let title: string | undefined
+  try {
+    const body = (await request.json()) as { title?: unknown }
+    if (typeof body.title === 'string' && body.title.trim()) {
+      title = body.title.trim().slice(0, 255)
+    }
+  } catch {
+    // No body (exercise bank uploads) — the asset stays untitled
+  }
+
   try {
     const upload = await mux.video.uploads.create({
       cors_origin: '*',
       new_asset_settings: {
         playback_policy: ['public'],
         encoding_tier: 'baseline',
+        ...(title ? { passthrough: title, meta: { title } } : {}),
       },
     })
 
@@ -34,6 +51,9 @@ export async function POST() {
 // Poll for upload → asset readiness; returns playbackId (and durationSec once
 // ready, whole seconds), or status/error info
 export async function GET(request: Request) {
+  const denied = await requireAdminApi()
+  if (denied) return denied
+
   const { searchParams } = new URL(request.url)
   const uploadId = searchParams.get('uploadId')
   if (!uploadId) {

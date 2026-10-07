@@ -62,6 +62,11 @@ export interface DbTask {
   // Step 3b (migration-task-progress.sql). Mux duration in whole seconds —
   // a video part's total time. Null when there is no video or it predates the backfill.
   video_duration_sec: number | null;
+  // migration-task-reference.sql. Only meaningful with a video: TRUE = the
+  // tagged exercises are what the video shows (reference only; the part is
+  // completed as a whole), FALSE = the video is an intro and exercises are
+  // completed one by one.
+  exercises_are_reference: boolean;
   blocks: DbBlock[];
 }
 

@@ -9,6 +9,7 @@ import {
   formatApproxMinutes,
   formatSummary,
   isPartDone,
+  isReferenceVideoPart,
   isWholePart,
   layoutPartBlocks,
   partInstructions,
@@ -68,7 +69,8 @@ export default function PartClient({
   const exercises = exerciseBlocks(part);
   const seconds = partTotalSeconds(part);
   const instructions = partInstructions(part);
-  const isVideo = Boolean(part.video_url);
+  // Reference video: the exercises are what the video shows (see lib/dayLogic.ts)
+  const isVideo = isReferenceVideoPart(part);
   const whole = isWholePart(part);
   const wholeDone = completedTasks.has(part.id);
   // The button follows the part's done state. A video part can be done by its
@@ -144,9 +146,9 @@ export default function PartClient({
             <div style={{ borderRadius: 14, overflow: "hidden", background: "var(--surface)" }}>
               <VideoPlayer url={part.video_url} title={part.name} />
             </div>
-            {seconds !== null && (
+            {(part.video_duration_sec ?? 0) > 0 && (
               <p style={{ fontSize: 12, color: "var(--muted2)", marginTop: 8 }}>
-                Myndband · {formatApproxMinutes(seconds)}
+                Myndband · {formatApproxMinutes(part.video_duration_sec!)}
               </p>
             )}
           </div>
