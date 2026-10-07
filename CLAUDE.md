@@ -33,7 +33,7 @@ weeks (id, course_id, title, order_index)
 days (id, week_id, title, description, order_index)
 tasks (id, day_id, name, color, video_url, order_index,
        instructions, format, work_sec, rest_sec, rounds, time_cap_sec, rep_scheme,
-       video_duration_sec)
+       video_duration_sec, exercises_are_reference)
 blocks (id, task_id, type['exercise'|'text'], order_index,
         exercise_id, content, sets, reps, load,
         duration_sec, rest_sec, side, intensity, group_label)
@@ -80,8 +80,12 @@ implementation: `isPartDone` / `partProgress` / `isDayDone` in `lib/dayLogic.ts`
 
 ## Admin Panel (/admin)
 Tabs: Exercise Bank | Courses | Course Builder | Users
-Course Builder: collapsible weeks/days/tasks, 
-exercise search with pills, duplicate day, move up/down
+Course Builder: collapsible weeks/days/parts/blocks (whole header clickable),
+move up/down on the left of every row, duplicate day and part, exercise search
+with pills, part video from the Mux library or upload ("+ Myndband"), quick-tag
+on reference video parts. Shared pieces in `components/admin/builder/`.
+- `/api/*` is not covered by the middleware. Every admin API route (the Mux
+  routes) must start with `requireAdminApi()` from `lib/requireAdmin.ts`.
 
 ## User-Facing Routes
 - `/` — homepage with course grid
