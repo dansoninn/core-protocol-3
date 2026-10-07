@@ -6,6 +6,10 @@ import MuxPlayer from "@mux/mux-player-react";
 import type { BlockIntensity, BlockSide, TaskFormat } from "@/types";
 import TaskSettings, { VideoPartHint } from "@/components/admin/TaskSettings";
 import QuickTag from "@/components/admin/QuickTag";
+import VideoSection, { REFERENCE_DEFAULT_MIN_SEC } from "@/components/admin/builder/VideoSection";
+import { Chevron, Chip, DeleteButton, DuplicateButton, ActionButton, HeaderRow, MoveButtons, SectionLabel, clock } from "@/components/admin/builder/ui";
+import { formatSummary } from "@/lib/dayLogic";
+import { ChevronsDownUp, ChevronsUpDown, Pencil } from "lucide-react";
 import BlockPrescription from "@/components/admin/BlockPrescription";
 import { formatPrice } from "@/lib/formatPrice";
 import { formatNumericDate } from "@/lib/formatDate";
@@ -75,6 +79,8 @@ interface DbTask {
   time_cap_sec: number | null;
   rep_scheme: string | null;
   video_duration_sec: number | null;
+  /** Absent until migration-task-reference.sql runs — treat anything but false as true. */
+  exercises_are_reference?: boolean;
   blocks: DbBlock[];
 }
 
@@ -1210,7 +1216,7 @@ function CourseBuilderTab() {
     const order = weeks.length;
     const { error } = await supabase.from("weeks").insert({
       course_id: selectedCourseId,
-      title: `Week ${order + 1}`,
+      title: `Vika ${order + 1}`,
       order_index: order,
     });
     if (error) show(error.message, "error");
@@ -1268,7 +1274,7 @@ function CourseBuilderTab() {
   const addDay = async (weekId: string, weekDaysCount: number) => {
     const { error } = await supabase.from("days").insert({
       week_id: weekId,
-      title: `Day ${weekDaysCount + 1}`,
+      title: `Dagur ${weekDaysCount + 1}`,
       description: "",
       order_index: weekDaysCount,
     });
@@ -1319,7 +1325,7 @@ function CourseBuilderTab() {
       .from("tasks")
       .insert({
         day_id: dayId,
-        name: `Task ${taskCount + 1}`,
+        name: `Liður ${taskCount + 1}`,
         color: "#F5A623",
         order_index: taskCount,
       })
@@ -1350,7 +1356,161 @@ function CourseBuilderTab() {
     else loadWeeks(selectedCourseId);
   };
 
-  const updateTaskField = async (taskId: string, patch: Partial<Pick<DbTask, "name" | "color" | "video_url" | "video_duration_sec" | "instructions" | "format" | "work_sec" | "rest_sec" | "rounds" | "time_cap_sec" | "rep_scheme">>) => {
+  const moveTask = async (taskId: string, direction: "up" | "down") => {
+    const day = weeks.flatMap((w) => w.days).find((d) => d.tasks.some((t) => t.id === taskId));
+    if (!day) return;
+    const sorted = [...day.tasks].sort((a, b) => a.order_index - b.order_index);
+    const idx = sorted.findIndex((t) => t.id === taskId);
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (idx < 0 || swapIdx < 0 || swapIdx >= sorted.length) return;
+    const a = sorted[idx];
+    const b = sorted[swapIdx];
+    // Equal order_index values (older data) would make a swap a no-op
+    const aIdx = a.order_index === b.order_index ? swapIdx : b.order_index;
+    const bIdx = a.order_index === b.order_index ? idx : a.order_index;
+    const [ra, rb] = await Promise.all([
+      track(supabase.from("tasks").update({ order_index: aIdx }).eq("id", a.id)),
+      track(supabase.from("tasks").update({ order_index: bIdx }).eq("id", b.id)),
+    ]);
+    if (ra.error || rb.error) {
+      show((ra.error ?? rb.error)!.message, "error");
+      loadWeeks(selectedCourseId);
+      return;
+    }
+    setWeeks((prev) =>
+      prev.map((w) => ({
+        ...w,
+        days: w.days.map((d) =>
+          d.id !== day.id
+            ? d
+            : {
+                ...d,
+                tasks: d.tasks
+                  .map((t) => (t.id === a.id ? { ...t, order_index: aIdx } : t.id === b.id ? { ...t, order_index: bIdx } : t))
+                  .sort((x, y) => x.order_index - y.order_index),
+              }
+        ),
+      }))
+    );
+  };
+
+  /** Copy a part (and its blocks) to just after itself. */
+  const duplicateTask = async (task: DbTask) => {
+    const day = weeks.flatMap((w) => w.days).find((d) => d.tasks.some((t) => t.id === task.id));
+    if (!day) return;
+    const later = day.tasks.filter((t) => t.order_index > task.order_index);
+    await Promise.all(
+      later.map((t) => supabase.from("tasks").update({ order_index: t.order_index + 1 }).eq("id", t.id))
+    );
+    const { data: newTask, error } = await supabase
+      .from("tasks")
+      .insert({
+        day_id: day.id,
+        name: `${task.name} (afrit)`,
+        color: task.color,
+        order_index: task.order_index + 1,
+        video_url: task.video_url ?? null,
+        video_duration_sec: task.video_duration_sec ?? null,
+        // Only sent when it differs from the column default, so a copy also
+        // works before migration-task-reference.sql has run
+        ...(task.exercises_are_reference === false ? { exercises_are_reference: false } : {}),
+        instructions: task.instructions ?? null,
+        format: task.format ?? "sets",
+        work_sec: task.work_sec ?? null,
+        rest_sec: task.rest_sec ?? null,
+        rounds: task.rounds ?? null,
+        time_cap_sec: task.time_cap_sec ?? null,
+        rep_scheme: task.rep_scheme ?? null,
+      })
+      .select()
+      .single();
+    if (error || !newTask) {
+      show(error?.message ?? "Afritun mistókst", "error");
+      loadWeeks(selectedCourseId);
+      return;
+    }
+    const newBlocks: DbBlock[] = [];
+    for (const block of task.blocks ?? []) {
+      const { data: nb } = await supabase
+        .from("blocks")
+        .insert({
+          task_id: (newTask as DbTask).id,
+          type: block.type,
+          order_index: block.order_index,
+          exercise_id: block.exercise_id ?? null,
+          content: block.content ?? null,
+          sets: block.sets ?? null,
+          reps: block.reps ?? null,
+          load: block.load ?? null,
+          duration_sec: block.duration_sec ?? null,
+          rest_sec: block.rest_sec ?? null,
+          side: block.side ?? null,
+          intensity: block.intensity ?? null,
+          group_label: block.group_label ?? null,
+        })
+        .select()
+        .single();
+      if (nb) newBlocks.push(nb as DbBlock);
+    }
+    const copy: DbTask = {
+      ...(newTask as DbTask),
+      exercises_are_reference: task.exercises_are_reference !== false,
+      blocks: newBlocks,
+    };
+    setWeeks((prev) =>
+      prev.map((w) => ({
+        ...w,
+        days: w.days.map((d) =>
+          d.id !== day.id
+            ? d
+            : {
+                ...d,
+                tasks: d.tasks
+                  .map((t) => (t.order_index > task.order_index ? { ...t, order_index: t.order_index + 1 } : t))
+                  .concat(copy)
+                  .sort((x, y) => x.order_index - y.order_index),
+              }
+        ),
+      }))
+    );
+    show("Lið afritað");
+  };
+
+  /** Attach a Mux video. Longer than a minute (or unknown) → its exercises default to reference. */
+  const attachTaskVideo = (taskId: string, playbackId: string, durationSec: number | null) =>
+    updateTaskField(taskId, {
+      video_url: playbackId,
+      video_duration_sec: durationSec,
+      exercises_are_reference: durationSec === null || durationSec > REFERENCE_DEFAULT_MIN_SEC,
+    });
+
+  const removeTaskVideo = (taskId: string) =>
+    updateTaskField(taskId, { video_url: null, video_duration_sec: null });
+
+  /** Where a Mux playback ID is already used — exercise bank and this course's parts. */
+  const videoUsedBy = (playbackId: string): string[] => {
+    const uses = exercises.filter((e) => e.mux_playback_id === playbackId).map((e) => `æfing ${e.name}`);
+    weeks.forEach((w) =>
+      w.days.forEach((d) =>
+        d.tasks.forEach((t) => {
+          if (t.video_url === playbackId) uses.push(`${w.title} · ${d.title} · ${t.name}`);
+        })
+      )
+    );
+    return uses;
+  };
+
+  const expandAll = () => {
+    setExpandedWeeks(new Set(weeks.map((w) => w.id)));
+    setExpandedDays(new Set(weeks.flatMap((w) => w.days.map((d) => d.id))));
+  };
+  const collapseAll = () => {
+    setExpandedWeeks(new Set());
+    setExpandedDays(new Set());
+    setExpandedTasks(new Set());
+  };
+
+  const updateTaskField = async (taskId: string, patch: Partial<Pick<DbTask, "name" | "color" | "video_url" | "video_duration_sec" | "exercises_are_reference" | "instructions" | "format" | "work_sec" | "rest_sec" | "rounds" | "time_cap_sec" | "rep_scheme">>) => {
     const { error } = await track(supabase.from("tasks").update(patch).eq("id", taskId));
     if (error) show(error.message, "error");
     else setTaskInState(taskId, patch);
@@ -1461,6 +1621,7 @@ function CourseBuilderTab() {
           order_index: task.order_index,
           video_url: task.video_url ?? null,
           video_duration_sec: task.video_duration_sec ?? null,
+          ...(task.exercises_are_reference === false ? { exercises_are_reference: false } : {}),
           instructions: task.instructions ?? null,
           format: task.format ?? "sets",
           work_sec: task.work_sec ?? null,
@@ -1530,7 +1691,12 @@ function CourseBuilderTab() {
       setTaskVideoStatus((prev) => ({ ...prev, [taskId]: s }));
     set("requesting");
     try {
-      const slotRes = await fetch("/api/mux/upload", { method: "POST" });
+      const slotRes = await fetch("/api/mux/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // Names the asset in Mux, so the video library can show it
+        body: JSON.stringify({ title: file.name.replace(/\.[^.]+$/, "") }),
+      });
       if (!slotRes.ok) throw new Error("Failed to create upload slot");
       const { uploadId, uploadUrl } = await slotRes.json();
 
@@ -1556,10 +1722,7 @@ function CourseBuilderTab() {
         }
         if (data.playbackId) pendingPlaybackId = data.playbackId;
         if (data.playbackId && data.status === "ready") {
-          await updateTaskField(taskId, {
-            video_url: data.playbackId,
-            video_duration_sec: data.durationSec ?? null,
-          });
+          await attachTaskVideo(taskId, data.playbackId, data.durationSec ?? null);
           set("done");
           return;
         }
@@ -1567,7 +1730,7 @@ function CourseBuilderTab() {
       // Still preparing after a minute: keep the upload, leave the duration
       // empty — scripts/backfill-video-duration.mjs fills it later.
       if (pendingPlaybackId) {
-        await updateTaskField(taskId, { video_url: pendingPlaybackId, video_duration_sec: null });
+        await attachTaskVideo(taskId, pendingPlaybackId, null);
         set("done");
         return;
       }
@@ -1655,25 +1818,6 @@ function CourseBuilderTab() {
   };
 
   // ── Shared inline style helpers ───────────────────────────────────────────────
-  const btnMuted = {
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    color: "var(--muted2)",
-    fontSize: 12,
-    fontWeight: 500,
-  } as const;
-
-  const arrowBtn = (disabled: boolean) => ({
-    background: "none",
-    border: "none",
-    cursor: disabled ? "default" : "pointer",
-    color: "var(--muted2)",
-    opacity: disabled ? 0.2 : 1,
-    padding: 0,
-    lineHeight: 1,
-  } as const);
-
   const dashedAddBtn = {
     width: "100%",
     background: "transparent",
@@ -1682,29 +1826,58 @@ function CourseBuilderTab() {
     padding: 12,
     color: "var(--muted2)",
     fontSize: 13,
+    fontWeight: 600,
     cursor: "pointer",
   } as const;
+
+  const addBlockBtn = {
+    flex: 1,
+    background: "var(--surface)",
+    border: "1px dashed var(--border)",
+    borderRadius: 10,
+    padding: "10px 16px",
+    color: "var(--muted2)",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+  } as const;
+
+  const totalParts = weeks.reduce((n, w) => n + w.days.reduce((m, d) => m + d.tasks.length, 0), 0);
 
   return (
     <div ref={builderRef}>
       {toast && <Toast msg={toast.msg} type={toast.type} />}
       <SaveStatusPill status={saveStatus} />
 
-      {/* Course selector */}
-      <div style={{ marginBottom: 20, position: "relative" }}>
+      {/* Toolbar — stays in view while scrolling a long course */}
+      <div
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 5,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          flexWrap: "wrap",
+          padding: "12px 0",
+          marginBottom: 12,
+          background: "var(--bg)",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
         <select
           value={selectedCourseId}
           onChange={(e) => handleCourseChange(e.target.value)}
           style={{
-            width: "100%",
+            flex: "1 1 280px",
             background: "var(--surface)",
             border: "1px solid var(--border)",
-            borderRadius: 12,
-            padding: "12px 16px",
+            borderRadius: 10,
+            padding: "10px 14px",
             fontSize: 14,
+            fontWeight: 600,
             color: "var(--text)",
             outline: "none",
-            appearance: "none",
             cursor: "pointer",
           }}
         >
@@ -1713,9 +1886,17 @@ function CourseBuilderTab() {
             <option key={c.id} value={c.id}>{c.title}</option>
           ))}
         </select>
+        {selectedCourseId && !loadingWeeks && weeks.length > 0 && (
+          <>
+            <span style={{ fontSize: 12, color: "var(--muted2)" }}>
+              {weeks.length} {weeks.length === 1 ? "vika" : "vikur"} · {totalParts} liðir
+            </span>
+            <ActionButton onClick={expandAll} icon={<ChevronsUpDown size={13} />}>Opna allt</ActionButton>
+            <ActionButton onClick={collapseAll} icon={<ChevronsDownUp size={13} />}>Loka öllu</ActionButton>
+          </>
+        )}
       </div>
 
-      {/* Weeks */}
       {selectedCourseId && (
         <div>
           {loadingWeeks ? (
@@ -1730,322 +1911,337 @@ function CourseBuilderTab() {
 
               {weeks.map((week, weekIdx) => {
                 const weekExpanded = expandedWeeks.has(week.id);
+                const weekParts = week.days.reduce((n, d) => n + d.tasks.length, 0);
                 return (
-                  <div
+                  <section
                     key={week.id}
                     style={{
                       background: "var(--surface)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 14,
-                      marginBottom: 12,
-                      overflow: "hidden",
+                      border: `1px solid ${weekExpanded ? "var(--accent-line)" : "var(--border)"}`,
+                      borderRadius: 16,
+                      marginBottom: 14,
                     }}
                   >
-                    {/* Week header */}
-                    <div
-                      style={{ display: "flex", alignItems: "center", padding: "16px 20px", gap: 10, cursor: "pointer" }}
-                      onClick={() => toggleWeek(week.id)}
-                    >
-                      <svg
-                        style={{ width: 14, height: 14, color: "var(--muted2)", flexShrink: 0, transform: weekExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }}
-                        fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                      <input
-                        defaultValue={week.title}
-                        onBlur={(e) => { if (e.target.value !== week.title) updateWeekTitle(week.id, e.target.value); }}
-                        onClick={(e) => e.stopPropagation()}
-                        style={{ flex: 1, background: "transparent", border: "none", fontFamily: "var(--font-bebas)", fontSize: 18, letterSpacing: "0.04em", color: "var(--text)", outline: "none", cursor: "text" }}
+                    {/* ── Week header ── */}
+                    <HeaderRow open={weekExpanded} onToggle={() => toggleWeek(week.id)} style={{ padding: "14px 16px" }}>
+                      <MoveButtons
+                        label="viku"
+                        canUp={weekIdx > 0}
+                        canDown={weekIdx < weeks.length - 1}
+                        onUp={() => moveWeek(week.id, "up")}
+                        onDown={() => moveWeek(week.id, "down")}
                       />
-                      <span style={{ fontSize: 12, color: "var(--muted2)", flexShrink: 0 }}>
-                        {week.days?.length ?? 0} dagar
-                      </span>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 2, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-                        <button onClick={(e) => { e.preventDefault(); moveWeek(week.id, "up"); }} style={arrowBtn(weekIdx === 0)} aria-label="Upp">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
-                        </button>
-                        <button onClick={(e) => { e.preventDefault(); moveWeek(week.id, "down"); }} style={arrowBtn(weekIdx === weeks.length - 1)} aria-label="Niður">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                        </button>
+                      <Chevron open={weekExpanded} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: "block", fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", color: "var(--accent)" }}>
+                          VIKA {weekIdx + 1}
+                        </span>
+                        <input
+                          key={week.title}
+                          defaultValue={week.title}
+                          aria-label="Heiti viku"
+                          onBlur={(e) => { if (e.target.value !== week.title) updateWeekTitle(week.id, e.target.value); }}
+                          style={{ width: "100%", background: "transparent", border: "none", fontFamily: "var(--font-bebas)", fontSize: 24, letterSpacing: "0.03em", color: "var(--text)", outline: "none", cursor: "text", padding: 0 }}
+                        />
                       </div>
-                      <div onClick={(e) => e.stopPropagation()}>
-                        <ConfirmDelete label={week.title} onConfirm={() => deleteWeek(week.id)} />
-                      </div>
-                    </div>
+                      <Chip>{week.days.length} {week.days.length === 1 ? "dagur" : "dagar"}</Chip>
+                      <Chip>{weekParts} liðir</Chip>
+                      <DeleteButton label="viku" onConfirm={() => deleteWeek(week.id)} />
+                    </HeaderRow>
 
-                    {/* Days */}
+                    {/* ── Days ── */}
                     {weekExpanded && (
-                      <div style={{ padding: "0 16px 16px", borderTop: "1px solid var(--border)" }}>
+                      <div style={{ padding: "4px 16px 16px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 10 }}>
                         {(week.days ?? []).map((day, dayIdx) => {
                           const isEditing = editingDay === day.id;
                           const f = dayForms[day.id] ?? {};
                           const totalDays = week.days?.length ?? 0;
                           const dayExpanded = expandedDays.has(day.id);
+                          const dayVideos = day.tasks.filter((t) => t.video_url).length;
 
                           return (
                             <div
                               key={day.id}
                               style={{
+                                marginTop: 10,
                                 background: "var(--surface2)",
                                 border: "1px solid var(--border)",
+                                borderLeft: `3px solid ${dayExpanded ? "var(--accent)" : "var(--border)"}`,
                                 borderRadius: 12,
-                                marginTop: 12,
-                                overflow: "hidden",
                               }}
                             >
-                              <div style={{ padding: "14px 16px" }}>
-                                {isEditing ? (
-                                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                                    <Field label="Titill">
-                                      <input value={f.title ?? ""} onChange={(e) => setDayForms((prev) => ({ ...prev, [day.id]: { ...prev[day.id], title: e.target.value } }))} className={inp} />
-                                    </Field>
-                                    <Field label="Lýsing">
-                                      <textarea value={f.description ?? ""} onChange={(e) => setDayForms((prev) => ({ ...prev, [day.id]: { ...prev[day.id], description: e.target.value } }))} className={`${inp} h-20 resize-none`} placeholder="Inngangstexti sem birtist efst á þessum degi…" />
-                                    </Field>
-                                    <div style={{ display: "flex", gap: 8 }}>
-                                      <button onClick={() => saveDay(day.id)} className={btnPrimary} style={{ backgroundColor: ACCENT }}>Vista dag</button>
-                                      <button onClick={() => setEditingDay(null)} className={btnGhost}>Hætta við</button>
-                                    </div>
+                              {isEditing ? (
+                                <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "14px 16px" }}>
+                                  <Field label="Titill">
+                                    <input value={f.title ?? ""} onChange={(e) => setDayForms((prev) => ({ ...prev, [day.id]: { ...prev[day.id], title: e.target.value } }))} className={inp} />
+                                  </Field>
+                                  <Field label="Lýsing">
+                                    <textarea value={f.description ?? ""} onChange={(e) => setDayForms((prev) => ({ ...prev, [day.id]: { ...prev[day.id], description: e.target.value } }))} className={`${inp} h-20 resize-none`} placeholder="Inngangstexti sem birtist efst á þessum degi…" />
+                                  </Field>
+                                  <div style={{ display: "flex", gap: 8 }}>
+                                    <button onClick={() => saveDay(day.id)} className={btnPrimary} style={{ backgroundColor: ACCENT }}>Vista dag</button>
+                                    <button onClick={() => setEditingDay(null)} className={btnGhost}>Hætta við</button>
                                   </div>
-                                ) : (
-                                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                    <button onClick={(e) => { e.preventDefault(); toggleDay(day.id); }} style={{ ...btnMuted, padding: 0 }}>
-                                      <svg style={{ width: 12, height: 12, transform: dayExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                      </svg>
-                                    </button>
-                                    <div style={{ flex: 1, minWidth: 0, cursor: "pointer" }} onClick={() => toggleDay(day.id)}>
-                                      <p style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>{day.title}</p>
-                                      {day.description && (
-                                        <p style={{ fontSize: 12, color: "var(--muted2)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{day.description}</p>
-                                      )}
-                                      <p style={{ fontSize: 11, color: "var(--muted2)", marginTop: 2 }}>{day.tasks?.length ?? 0} verkefni</p>
-                                    </div>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-                                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                                        <button onClick={(e) => { e.preventDefault(); moveDay(day.id, "up"); }} style={arrowBtn(dayIdx === 0)}>
-                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
-                                        </button>
-                                        <button onClick={(e) => { e.preventDefault(); moveDay(day.id, "down"); }} style={arrowBtn(dayIdx === totalDays - 1)}>
-                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                                        </button>
-                                      </div>
-                                      <button onClick={() => startEditDay(day)} style={btnMuted}>Breyta</button>
-                                      <button onClick={() => duplicateDay(day)} style={btnMuted}>Afrita</button>
-                                      <ConfirmDelete label={day.title} onConfirm={() => deleteDay(day.id)} />
-                                    </div>
+                                </div>
+                              ) : (
+                                <HeaderRow open={dayExpanded} onToggle={() => toggleDay(day.id)} style={{ padding: "12px 14px" }}>
+                                  <MoveButtons
+                                    label="dag"
+                                    canUp={dayIdx > 0}
+                                    canDown={dayIdx < totalDays - 1}
+                                    onUp={() => moveDay(day.id, "up")}
+                                    onDown={() => moveDay(day.id, "down")}
+                                  />
+                                  <Chevron open={dayExpanded} size={16} />
+                                  <span
+                                    style={{
+                                      flexShrink: 0,
+                                      fontFamily: "var(--font-bebas)",
+                                      fontSize: 15,
+                                      lineHeight: 1,
+                                      padding: "5px 7px",
+                                      borderRadius: 6,
+                                      color: dayExpanded ? "var(--accent)" : "var(--muted2)",
+                                      background: dayExpanded ? "var(--accent-dim)" : "var(--surface3)",
+                                    }}
+                                  >
+                                    D{dayIdx + 1}
+                                  </span>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <p style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>{day.title}</p>
+                                    {day.description && (
+                                      <p style={{ fontSize: 12, color: "var(--muted2)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{day.description}</p>
+                                    )}
                                   </div>
-                                )}
-                              </div>
+                                  <Chip>{day.tasks.length} {day.tasks.length === 1 ? "liður" : "liðir"}</Chip>
+                                  {dayVideos > 0 && <Chip>▶ {dayVideos}</Chip>}
+                                  <ActionButton onClick={() => startEditDay(day)} icon={<Pencil size={13} />}>Breyta</ActionButton>
+                                  <DuplicateButton onClick={() => duplicateDay(day)} />
+                                  <DeleteButton label="degi" onConfirm={() => deleteDay(day.id)} />
+                                </HeaderRow>
+                              )}
 
-                              {/* Tasks */}
+                              {/* ── Parts ── */}
                               {dayExpanded && (
-                                <div style={{ padding: "0 12px 12px", borderTop: "1px solid var(--border)" }}>
-                                  {(day.tasks ?? []).map((task) => {
+                                <div style={{ padding: "4px 12px 12px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 8 }}>
+                                  {(day.tasks ?? []).map((task, taskIdx) => {
                                     const taskExpanded = expandedTasks.has(task.id);
                                     const borderColor = task.color || "var(--accent)";
+                                    const exerciseCount = task.blocks.filter((b) => b.type === "exercise").length;
+                                    const formatName = formatSummary({ ...task, blocks: [] }).name;
+                                    const reference = Boolean(task.video_url) && task.exercises_are_reference !== false;
                                     return (
                                       <div
                                         key={task.id}
                                         style={{
-                                          background: "var(--surface3)",
-                                          borderRadius: 10,
-                                          borderLeft: `3px solid ${borderColor}`,
-                                          marginBottom: 8,
                                           marginTop: 8,
-                                          overflow: "hidden",
+                                          background: "var(--surface)",
+                                          border: `1px solid ${taskExpanded ? "var(--accent-line)" : "var(--border)"}`,
+                                          borderLeft: `4px solid ${borderColor}`,
+                                          borderRadius: 10,
+                                          boxShadow: taskExpanded ? "0 6px 20px rgba(0,0,0,0.18)" : "none",
                                         }}
                                       >
-                                        {/* Task header */}
-                                        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px" }}>
-                                          <input
-                                            defaultValue={task.name}
-                                            onBlur={(e) => { if (e.target.value !== task.name) updateTaskField(task.id, { name: e.target.value }); }}
-                                            style={{ flex: 1, background: "transparent", border: "none", fontSize: 14, fontWeight: 600, color: "var(--text)", outline: "none" }}
+                                        {/* Part header — click anywhere to open */}
+                                        <HeaderRow open={taskExpanded} onToggle={() => toggleTask(task.id)} style={{ padding: "10px 12px" }}>
+                                          <MoveButtons
+                                            label="lið"
+                                            canUp={taskIdx > 0}
+                                            canDown={taskIdx < day.tasks.length - 1}
+                                            onUp={() => moveTask(task.id, "up")}
+                                            onDown={() => moveTask(task.id, "down")}
                                           />
-                                          {!taskExpanded && (task.blocks?.length ?? 0) > 0 && (
-                                            <span style={{ fontSize: 11, color: "var(--muted2)", flexShrink: 0 }}>
-                                              {task.blocks.length} blokkir
-                                            </span>
-                                          )}
-                                          <button onClick={(e) => { e.preventDefault(); toggleTask(task.id); }} style={{ ...btnMuted, padding: 0 }}>
-                                            <svg style={{ width: 14, height: 14, transform: taskExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                            </svg>
-                                          </button>
-                                          <ConfirmDelete label={task.name} onConfirm={() => deleteTask(task.id)} />
-                                        </div>
-
-                                        {/* Task body */}
-                                        {taskExpanded && (<>
-                                          {/* Task video */}
-                                          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderTop: "1px solid var(--border)" }}>
-                                            <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--muted2)", flexShrink: 0, width: 36 }}>Video</span>
-                                            {(() => {
-                                              const status = taskVideoStatus[task.id] ?? "idle";
-                                              const isUploading = ["requesting", "uploading", "processing"].includes(status);
-                                              return (
-                                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                                  <label style={{ cursor: isUploading ? "default" : "pointer", opacity: isUploading ? 0.6 : 1 }}>
-                                                    <span style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6, background: "var(--surface)", border: "1px solid var(--border)", color: "var(--muted2)", whiteSpace: "nowrap" }}>
-                                                      {status === "done" || task.video_url ? "Skipta um" : "Velja skrá"}
-                                                    </span>
-                                                    <input type="file" accept="video/*" className="sr-only" disabled={isUploading} onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadTaskVideoMux(task.id, file); e.target.value = ""; }} />
-                                                  </label>
-                                                  {status === "idle" && task.video_url && (
-                                                    <span style={{ fontSize: 10, color: "var(--success)" }}>● Mux</span>
-                                                  )}
-                                                  {status !== "idle" && (
-                                                    <span style={{ fontSize: 10, color: status === "done" ? "var(--success)" : status === "error" ? "#ef4444" : "var(--muted2)" }}>
-                                                      {{ requesting: "Bið…", uploading: "Hleður…", processing: "Vinnur…", done: "Tilbúið", error: "Villa", idle: "" }[status]}
-                                                    </span>
-                                                  )}
-                                                </div>
-                                              );
-                                            })()}
-                                          </div>
-
-                                          <TaskSettings task={task} onSave={(patch) => updateTaskField(task.id, patch)} />
-
-                                          {/* Blocks */}
-                                          <div style={{ borderTop: "1px solid var(--border)" }}>
-                                            {task.video_url && <VideoPartHint />}
-                                            {(task.blocks ?? []).map((block, blockIdx) => {
-                                              const isLast = blockIdx === (task.blocks?.length ?? 1) - 1;
-                                              return (
-                                                <div key={block.id} style={{ borderBottom: isLast ? "none" : "1px solid var(--border)" }}>
-                                                  {block.type === "exercise" ? (
-                                                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", background: "var(--surface)" }}>
-                                                      <span style={{ color: "var(--muted2)", cursor: "grab", fontSize: 14, paddingTop: 2, flexShrink: 0, userSelect: "none" }}>≡</span>
-                                                      <div style={{ flex: 1, minWidth: 0 }}>
-                                                        {/* Exercise tag or search */}
-                                                        {block.exercise_id && exBlockSearch[block.id] === undefined ? (
-                                                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 20, padding: "3px 10px", fontSize: 13, fontWeight: 500, color: "var(--text)", maxWidth: "100%" }}>
-                                                              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                                                {exercises.find((e) => e.id === block.exercise_id)?.name ?? "Óþekkt"}
-                                                              </span>
-                                                              <span style={{ fontSize: 10, color: "var(--muted2)", flexShrink: 0 }}>
-                                                                {exercises.find((e) => e.id === block.exercise_id)?.category}
-                                                              </span>
-                                                              <button onClick={(e) => { e.preventDefault(); clearBlockExercise(block.id); setExBlockSearch((prev) => ({ ...prev, [block.id]: "" })); }} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted2)", flexShrink: 0, lineHeight: 1 }}>×</button>
-                                                            </span>
-                                                          </div>
-                                                        ) : (
-                                                          <div style={{ marginBottom: 10 }}>
-                                                            <input type="search" value={exBlockSearch[block.id] ?? ""} onChange={(e) => setExBlockSearch((prev) => ({ ...prev, [block.id]: e.target.value }))} style={{ width: "100%", background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 10px", fontSize: 12, color: "var(--text)", outline: "none", boxSizing: "border-box" }} placeholder="Leita að æfingu…" />
-                                                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4, maxHeight: 80, overflowY: "auto" }}>
-                                                              {exercises.filter((ex) => { const q = (exBlockSearch[block.id] ?? "").toLowerCase(); return !q || ex.name.toLowerCase().includes(q) || ex.category.toLowerCase().includes(q); }).slice(0, 16).map((ex) => (
-                                                                <button key={ex.id} onClick={(e) => { e.preventDefault(); updateBlockExercise(block.id, ex.id); setExBlockSearch((prev) => { const next = { ...prev }; delete next[block.id]; return next; }); }} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 20, background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", cursor: "pointer" }}>
-                                                                  {ex.name}
-                                                                </button>
-                                                              ))}
-                                                            </div>
-                                                          </div>
-                                                        )}
-                                                        <BlockPrescription
-                                                          block={block}
-                                                          exercise={exercises.find((e) => e.id === block.exercise_id) ?? null}
-                                                          onSave={(patch) => updateBlockFields(block.id, patch)}
-                                                        />
-                                                      </div>
-                                                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                                                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                                                          <button onClick={() => moveBlock(block.id, "up", task.blocks)} style={arrowBtn(blockIdx === 0)}>
-                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
-                                                          </button>
-                                                          <button onClick={() => moveBlock(block.id, "down", task.blocks)} style={arrowBtn(isLast)}>
-                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                                                          </button>
-                                                        </div>
-                                                        <ConfirmDelete label="blokk" onConfirm={() => deleteBlock(block.id)} />
-                                                      </div>
-                                                    </div>
-                                                  ) : (
-                                                    // TEXT BLOCK
-                                                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", background: "var(--surface2)" }}>
-                                                      <span style={{ color: "var(--muted2)", cursor: "grab", fontSize: 14, paddingTop: 4, flexShrink: 0, userSelect: "none" }}>≡</span>
-                                                      <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--muted2)", paddingTop: 6, flexShrink: 0, width: 36 }}>TEXTI</span>
-                                                      <textarea
-                                                        defaultValue={block.content ?? ""}
-                                                        onBlur={(e) => { if (e.target.value !== (block.content ?? "")) updateBlockContent(block.id, e.target.value); }}
-                                                        style={{ flex: 1, background: "transparent", border: "none", color: "var(--text)", fontSize: 13, minHeight: 60, resize: "vertical", outline: "none", padding: "4px 8px" }}
-                                                        placeholder="Texti…"
-                                                      />
-                                                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                                                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                                                          <button onClick={() => moveBlock(block.id, "up", task.blocks)} style={arrowBtn(blockIdx === 0)}>
-                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
-                                                          </button>
-                                                          <button onClick={() => moveBlock(block.id, "down", task.blocks)} style={arrowBtn(isLast)}>
-                                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                                                          </button>
-                                                        </div>
-                                                        <ConfirmDelete label="blokk" onConfirm={() => deleteBlock(block.id)} />
-                                                      </div>
-                                                    </div>
-                                                  )}
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-
-                                          {task.video_url && (
-                                            <QuickTag
-                                              exercises={exercises}
-                                              taggedExerciseIds={new Set((task.blocks ?? []).flatMap((b) => (b.type === "exercise" && b.exercise_id ? [b.exercise_id] : [])))}
-                                              onAdd={(exerciseId) => addBlock(task.id, task.blocks?.length ?? 0, "exercise", exerciseId)}
-                                            />
-                                          )}
-
-                                          {/* Add block */}
-                                          <div style={{ padding: "10px 14px", borderTop: "1px solid var(--border)" }}>
-                                            {showExSelectForTask === task.id ? (
-                                              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                                                <input
-                                                  autoFocus
-                                                  type="search"
-                                                  value={exSearchForTask[task.id] ?? ""}
-                                                  onChange={(e) => setExSearchForTask((prev) => ({ ...prev, [task.id]: e.target.value }))}
-                                                  style={{ width: "100%", background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--text)", outline: "none", boxSizing: "border-box" }}
-                                                  placeholder="Leita eftir nafni eða flokki…"
-                                                />
-                                                <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
-                                                  {(() => {
-                                                    const q = (exSearchForTask[task.id] ?? "").toLowerCase();
-                                                    const results = exercises.filter((ex) => !q || ex.name.toLowerCase().includes(q) || ex.category.toLowerCase().includes(q)).slice(0, 10);
-                                                    if (exercises.length === 0) return <p style={{ padding: "8px 12px", fontSize: 12, color: "var(--muted2)" }}>Bættu við æfingum í Æfingabanka fyrst.</p>;
-                                                    if (results.length === 0) return <p style={{ padding: "8px 12px", fontSize: 12, color: "var(--muted2)" }}>Engar æfingar passa.</p>;
-                                                    return results.map((ex) => (
-                                                      <button key={ex.id} onClick={(e) => { e.preventDefault(); addBlock(task.id, task.blocks?.length ?? 0, "exercise", ex.id); setShowExSelectForTask(null); setExSearchForTask((prev) => ({ ...prev, [task.id]: "" })); }} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "8px 12px", textAlign: "left", fontSize: 12, color: "var(--text)", background: "none", border: "none", borderBottom: "1px solid var(--border)", cursor: "pointer" }}>
-                                                        <span style={{ fontWeight: 500 }}>{ex.name}</span>
-                                                        <span style={{ color: "var(--muted2)", flexShrink: 0 }}>{ex.category}</span>
-                                                      </button>
-                                                    ));
-                                                  })()}
-                                                </div>
-                                                <button onClick={() => { setShowExSelectForTask(null); setExSearchForTask((prev) => ({ ...prev, [task.id]: "" })); }} style={{ fontSize: 12, color: "var(--muted2)", background: "none", border: "none", cursor: "pointer" }}>Hætta við</button>
-                                              </div>
+                                          <Chevron open={taskExpanded} size={16} />
+                                          <span style={{ flexShrink: 0, width: 24, height: 24, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "var(--muted2)", background: "var(--surface2)", border: "1px solid var(--border)" }}>
+                                            {taskIdx + 1}
+                                          </span>
+                                          <div style={{ flex: 1, minWidth: 0 }}>
+                                            {taskExpanded ? (
+                                              <input
+                                                key={task.name}
+                                                defaultValue={task.name}
+                                                aria-label="Heiti liðar"
+                                                onBlur={(e) => { if (e.target.value !== task.name) updateTaskField(task.id, { name: e.target.value }); }}
+                                                style={{ width: "100%", background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 10px", fontSize: 15, fontWeight: 700, color: "var(--text)", outline: "none" }}
+                                              />
                                             ) : (
-                                              <div style={{ display: "flex", gap: 8 }}>
-                                                <button onClick={(e) => { e.preventDefault(); setShowExSelectForTask(task.id); }} style={{ flex: 1, background: "var(--surface)", border: "1px dashed var(--border)", borderRadius: 10, padding: "10px 16px", color: "var(--muted2)", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
-                                                  + Æfing
-                                                </button>
-                                                <button onClick={(e) => { e.preventDefault(); addBlock(task.id, task.blocks?.length ?? 0, "text"); }} style={{ flex: 1, background: "var(--surface)", border: "1px dashed var(--border)", borderRadius: 10, padding: "10px 16px", color: "var(--muted2)", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
-                                                  + Texti
-                                                </button>
-                                              </div>
+                                              <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.name}</p>
                                             )}
                                           </div>
-                                        </>)}
+                                          {formatName && <Chip tone="accent">{formatName}</Chip>}
+                                          {task.video_url && <Chip>▶ {task.video_duration_sec ? clock(task.video_duration_sec) : "myndband"}</Chip>}
+                                          <Chip>{exerciseCount} {exerciseCount === 1 ? "æfing" : "æfingar"}{reference && exerciseCount > 0 ? " · viðmið" : ""}</Chip>
+                                          <DuplicateButton onClick={() => duplicateTask(task)} />
+                                          <DeleteButton label="lið" onConfirm={() => deleteTask(task.id)} />
+                                        </HeaderRow>
+
+                                        {/* Part body — three labelled sections */}
+                                        {taskExpanded && (
+                                          <div style={{ borderTop: "1px solid var(--border)" }}>
+                                            <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
+                                              <SectionLabel>Myndband</SectionLabel>
+                                              <VideoSection
+                                                playbackId={task.video_url}
+                                                durationSec={task.video_duration_sec}
+                                                exercisesAreReference={task.exercises_are_reference !== false}
+                                                uploadStatus={taskVideoStatus[task.id] ?? "idle"}
+                                                usedBy={videoUsedBy}
+                                                onUpload={(file) => uploadTaskVideoMux(task.id, file)}
+                                                onPick={(asset) => attachTaskVideo(task.id, asset.playbackId, asset.durationSec)}
+                                                onRemove={() => removeTaskVideo(task.id)}
+                                                onReferenceChange={(value) => updateTaskField(task.id, { exercises_are_reference: value })}
+                                              />
+                                            </div>
+
+                                            <div style={{ padding: "14px 16px 4px" }}>
+                                              <SectionLabel>Snið og leiðbeiningar</SectionLabel>
+                                            </div>
+                                            <TaskSettings task={task} onSave={(patch) => updateTaskField(task.id, patch)} />
+
+                                            <div style={{ padding: "14px 16px", borderTop: "1px solid var(--border)" }}>
+                                              <SectionLabel>
+                                                {reference ? `Æfingar í myndbandinu (${exerciseCount})` : `Æfingar og texti (${task.blocks.length})`}
+                                              </SectionLabel>
+                                              {reference && <VideoPartHint />}
+
+                                              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: reference ? 8 : 0 }}>
+                                                {(task.blocks ?? []).map((block, blockIdx) => {
+                                                  const isLast = blockIdx === (task.blocks?.length ?? 1) - 1;
+                                                  const bankExercise = exercises.find((e) => e.id === block.exercise_id) ?? null;
+                                                  return (
+                                                    <div
+                                                      key={block.id}
+                                                      style={{
+                                                        display: "flex",
+                                                        alignItems: "flex-start",
+                                                        gap: 12,
+                                                        padding: "12px 12px",
+                                                        borderRadius: 10,
+                                                        border: "1px solid var(--border)",
+                                                        background: block.type === "exercise" ? "var(--surface2)" : "var(--surface3)",
+                                                      }}
+                                                    >
+                                                      <MoveButtons
+                                                        label="blokk"
+                                                        canUp={blockIdx > 0}
+                                                        canDown={!isLast}
+                                                        onUp={() => moveBlock(block.id, "up", task.blocks)}
+                                                        onDown={() => moveBlock(block.id, "down", task.blocks)}
+                                                      />
+                                                      <span style={{ flexShrink: 0, minWidth: 22, paddingTop: 5, fontSize: 12, fontWeight: 700, color: "var(--muted2)", textAlign: "right" }}>
+                                                        {block.type === "exercise" ? `${blockIdx + 1}.` : "T"}
+                                                      </span>
+                                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                                        {block.type === "exercise" ? (
+                                                          <>
+                                                            {block.exercise_id && exBlockSearch[block.id] === undefined ? (
+                                                              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                                                                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 20, padding: "4px 12px", fontSize: 14, fontWeight: 600, color: "var(--text)", maxWidth: "100%" }}>
+                                                                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                                    {bankExercise?.name ?? "Óþekkt"}
+                                                                  </span>
+                                                                  <span style={{ fontSize: 11, color: "var(--muted2)", flexShrink: 0 }}>{bankExercise?.category}</span>
+                                                                  <button
+                                                                    type="button"
+                                                                    aria-label="Skipta um æfingu"
+                                                                    onClick={(e) => { e.preventDefault(); clearBlockExercise(block.id); setExBlockSearch((prev) => ({ ...prev, [block.id]: "" })); }}
+                                                                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted2)", flexShrink: 0, lineHeight: 1, fontSize: 16 }}
+                                                                  >
+                                                                    ×
+                                                                  </button>
+                                                                </span>
+                                                              </div>
+                                                            ) : (
+                                                              <div style={{ marginBottom: 10 }}>
+                                                                <input type="search" value={exBlockSearch[block.id] ?? ""} onChange={(e) => setExBlockSearch((prev) => ({ ...prev, [block.id]: e.target.value }))} style={{ width: "100%", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 10px", fontSize: 12, color: "var(--text)", outline: "none", boxSizing: "border-box" }} placeholder="Leita að æfingu…" />
+                                                                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4, maxHeight: 80, overflowY: "auto" }}>
+                                                                  {exercises.filter((ex) => { const q = (exBlockSearch[block.id] ?? "").toLowerCase(); return !q || ex.name.toLowerCase().includes(q) || ex.category.toLowerCase().includes(q); }).slice(0, 16).map((ex) => (
+                                                                    <button key={ex.id} type="button" onClick={(e) => { e.preventDefault(); updateBlockExercise(block.id, ex.id); setExBlockSearch((prev) => { const next = { ...prev }; delete next[block.id]; return next; }); }} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 20, background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)", cursor: "pointer" }}>
+                                                                      {ex.name}
+                                                                    </button>
+                                                                  ))}
+                                                                </div>
+                                                              </div>
+                                                            )}
+                                                            <BlockPrescription
+                                                              block={block}
+                                                              exercise={bankExercise}
+                                                              onSave={(patch) => updateBlockFields(block.id, patch)}
+                                                            />
+                                                          </>
+                                                        ) : (
+                                                          <textarea
+                                                            defaultValue={block.content ?? ""}
+                                                            aria-label="Texti"
+                                                            onBlur={(e) => { if (e.target.value !== (block.content ?? "")) updateBlockContent(block.id, e.target.value); }}
+                                                            style={{ width: "100%", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontSize: 13, minHeight: 64, resize: "vertical", outline: "none", padding: "8px 10px", boxSizing: "border-box" }}
+                                                            placeholder="Texti…"
+                                                          />
+                                                        )}
+                                                      </div>
+                                                      <DeleteButton label="blokk" onConfirm={() => deleteBlock(block.id)} />
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            </div>
+
+                                            {reference && (
+                                              <QuickTag
+                                                exercises={exercises}
+                                                taggedExerciseIds={new Set((task.blocks ?? []).flatMap((b) => (b.type === "exercise" && b.exercise_id ? [b.exercise_id] : [])))}
+                                                onAdd={(exerciseId) => addBlock(task.id, task.blocks?.length ?? 0, "exercise", exerciseId)}
+                                              />
+                                            )}
+
+                                            {/* Add block */}
+                                            <div style={{ padding: "12px 16px 16px", borderTop: "1px solid var(--border)" }}>
+                                              {showExSelectForTask === task.id ? (
+                                                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                                  <input
+                                                    autoFocus
+                                                    type="search"
+                                                    value={exSearchForTask[task.id] ?? ""}
+                                                    onChange={(e) => setExSearchForTask((prev) => ({ ...prev, [task.id]: e.target.value }))}
+                                                    style={{ width: "100%", background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--text)", outline: "none", boxSizing: "border-box" }}
+                                                    placeholder="Leita eftir nafni eða flokki…"
+                                                  />
+                                                  <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+                                                    {(() => {
+                                                      const q = (exSearchForTask[task.id] ?? "").toLowerCase();
+                                                      const results = exercises.filter((ex) => !q || ex.name.toLowerCase().includes(q) || ex.category.toLowerCase().includes(q)).slice(0, 10);
+                                                      if (exercises.length === 0) return <p style={{ padding: "8px 12px", fontSize: 12, color: "var(--muted2)" }}>Bættu við æfingum í Æfingabanka fyrst.</p>;
+                                                      if (results.length === 0) return <p style={{ padding: "8px 12px", fontSize: 12, color: "var(--muted2)" }}>Engar æfingar passa.</p>;
+                                                      return results.map((ex) => (
+                                                        <button key={ex.id} type="button" onClick={(e) => { e.preventDefault(); addBlock(task.id, task.blocks?.length ?? 0, "exercise", ex.id); setShowExSelectForTask(null); setExSearchForTask((prev) => ({ ...prev, [task.id]: "" })); }} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "8px 12px", textAlign: "left", fontSize: 12, color: "var(--text)", background: "none", border: "none", borderBottom: "1px solid var(--border)", cursor: "pointer" }}>
+                                                          <span style={{ fontWeight: 500 }}>{ex.name}</span>
+                                                          <span style={{ color: "var(--muted2)", flexShrink: 0 }}>{ex.category}</span>
+                                                        </button>
+                                                      ));
+                                                    })()}
+                                                  </div>
+                                                  <button type="button" onClick={() => { setShowExSelectForTask(null); setExSearchForTask((prev) => ({ ...prev, [task.id]: "" })); }} style={{ fontSize: 12, color: "var(--muted2)", background: "none", border: "none", cursor: "pointer" }}>Hætta við</button>
+                                                </div>
+                                              ) : (
+                                                <div style={{ display: "flex", gap: 8 }}>
+                                                  <button type="button" onClick={(e) => { e.preventDefault(); setShowExSelectForTask(task.id); }} style={addBlockBtn}>
+                                                    + Æfing
+                                                  </button>
+                                                  <button type="button" onClick={(e) => { e.preventDefault(); addBlock(task.id, task.blocks?.length ?? 0, "text"); }} style={addBlockBtn}>
+                                                    + Texti
+                                                  </button>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        )}
                                       </div>
                                     );
                                   })}
 
-                                  {/* Add task */}
-                                  <button onClick={() => addTask(day.id, day.tasks?.length ?? 0)} style={dashedAddBtn}>
-                                    + Verkefni
+                                  {/* Add part */}
+                                  <button type="button" onClick={() => addTask(day.id, day.tasks?.length ?? 0)} style={{ ...dashedAddBtn, marginTop: 8 }}>
+                                    + Liður
                                   </button>
                                 </div>
                               )}
@@ -2054,17 +2250,17 @@ function CourseBuilderTab() {
                         })}
 
                         {/* Add day */}
-                        <button onClick={() => addDay(week.id, week.days?.length ?? 0)} style={{ ...dashedAddBtn, marginTop: 12 }}>
+                        <button type="button" onClick={() => addDay(week.id, week.days?.length ?? 0)} style={{ ...dashedAddBtn, marginTop: 10 }}>
                           + Dagur
                         </button>
                       </div>
                     )}
-                  </div>
+                  </section>
                 );
               })}
 
               {/* Add week */}
-              <button onClick={addWeek} style={dashedAddBtn}>
+              <button type="button" onClick={addWeek} style={dashedAddBtn}>
                 + Vika
               </button>
             </>

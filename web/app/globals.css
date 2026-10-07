@@ -17,6 +17,9 @@
      Was slate #708893, which made a finished part read as a disabled button. */
   --success: #3FBF8F;
   --success-dim: rgba(63, 191, 143, 0.12);
+  /* Destructive actions (Eyða). 5.0:1 or better on every surface. */
+  --danger: #F0716A;
+  --danger-dim: rgba(240, 113, 106, 0.12);
   --text: #E8F2F8;
   --muted: #4A6070;
   --muted2: #5A7A90;
@@ -37,6 +40,8 @@
   --accent-line: rgba(130, 90, 0, 0.35);
   --success: #1a9e75;
   --success-dim: rgba(26, 158, 117, 0.10);
+  --danger: #B42318;
+  --danger-dim: rgba(180, 35, 24, 0.08);
   --text: #0f1117;
   --muted: #8892a0;
   --muted2: #6b7380;

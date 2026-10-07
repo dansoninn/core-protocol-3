@@ -98,9 +98,8 @@ export default function TaskSettings({
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: 10,
-        padding: "10px 12px",
-        borderTop: "1px solid var(--border)",
+        gap: 12,
+        padding: "0 16px 16px",
       }}
     >
       <div>
@@ -163,14 +162,15 @@ export function VideoPartHint() {
   return (
     <div
       style={{
-        padding: "8px 14px",
-        fontSize: 11,
+        padding: "8px 12px",
+        fontSize: 12,
         color: "var(--muted2)",
         background: "var(--accent-dim)",
-        borderBottom: "1px solid var(--border)",
+        border: "1px solid var(--accent-line)",
+        borderRadius: 8,
       }}
     >
-      Æfingar í myndbandinu — birtast sem tilvísun undir myndbandinu.
+      Æfingarnar sýnast undir myndbandinu til viðmiðunar — notandinn hakar ekki við þær.
     </div>
   );
 }

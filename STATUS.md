@@ -91,7 +91,23 @@ Shipped earlier:
   `rgba(255,255,255,…)` are borders/scrims on photos or blurred chips
   (course hero, course cards), which are correct in both themes.
 
+- **`web/migration-task-reference.sql` — pending, Daniel runs it before
+  deploying branch `builder-v2`.** Adds `tasks.exercises_are_reference`
+  (BOOLEAN NOT NULL DEFAULT TRUE). The app reads a missing column as TRUE,
+  but the builder's checkbox and video attach write it, so those fail until
+  it runs.
+- **Video library tab.** `/admin` already has a placeholder "Myndbönd" tab.
+  The builder's picker (`/api/mux/assets`) could back it: rename, delete,
+  see where each video is used.
+
 ## Unverified
+
+- **Branch `builder-v2`.** Build passes; the builder was rendered in headless
+  Chromium with fixture data (Supabase and Mux responses mocked): collapsed,
+  all open, a video part open, the video picker. Not run against real
+  Supabase/Mux: `/api/mux/assets` listing, upload titles, move/duplicate part
+  writes, the admin guard on the Mux routes (needs a non-admin session to
+  see the 403).
 
 - **Branch `step-4-cleanup` (on top of 3b).** Build passes after each commit;
   `formatDate` checked with assertions; part page (tiles, A/B groups,
@@ -213,6 +229,36 @@ Shipped earlier:
 - **A whole part's button follows `isPartDone`.** A video part done by its
   blocks alone (ticked before 3b.2) shows as done; "afmerkja" clears those
   block rows.
+- **Course builder v2 (branch `builder-v2`).** Clear levels: week (Bebas
+  title, "VIKA n"), day ("Dn" badge, left accent when open), part (colour bar,
+  number), block. Every header is clickable to open/close; inputs and
+  buttons inside it don't toggle. Move up/down sit on the left of every row
+  (week, day, part — new — and block) as bordered buttons. Afrita / Eyða are
+  real buttons; Eyða asks "Eyða …? Já, eyða / Nei". Collapsed headers carry
+  summary chips (dagar, liðir, format, video length, æfingar). Sticky toolbar
+  with course select, counts, "Opna allt" / "Loka öllu". An open part has
+  three labelled sections: Myndband, Snið og leiðbeiningar, Æfingar.
+  Duplicate part (`duplicateTask`) copies it with its blocks right after
+  itself. New defaults are Icelandic ("Vika n", "Dagur n", "Liður n").
+- **A part's video is added like an exercise.** "+ Myndband" opens a picker:
+  the Mux library (`GET /api/mux/assets` — every ready asset with a public
+  playback ID, part and exercise videos alike, newest first, filter "Aðeins
+  lengri en 1 mín" on by default, search by title or where it is used) or
+  "Hlaða upp nýju". New uploads are titled in Mux with the file name; older
+  assets show as "Myndband frá {date}". With a video: thumbnail, length,
+  Skipta um, Fjarlægja.
+- **"Æfingarnar eru í myndbandinu" (`tasks.exercises_are_reference`).** On a
+  part with a video. Ticked: today's behaviour — exercises are reference, one
+  "Merkja lokið" for the part, part time = video length, quick-tag shown.
+  Unticked: the video is an intro; exercises are completed one by one and
+  the part's time and format tiles come from the format. Set automatically
+  when a video is attached: ticked for > 60 s or unknown length. One rule:
+  `isReferenceVideoPart` in `lib/dayLogic.ts`.
+- **Mux API routes are admin-only** (`lib/requireAdmin.ts`). Before this,
+  `/api/mux/upload` was open to anyone — the middleware guards `/admin`
+  pages, not `/api`. Every admin API route must call `requireAdminApi()`.
+- **`--danger` token** (`#F0716A` dark, `#B42318` light; ≥ 5:1 on every
+  surface) for destructive buttons.
 - **Format tiles (3b.3).** Above the instructions on a non-video part: the
   format name (gold), then one tile per set parameter, with the admin's words
   (Lengd, Bil, Vinna, Hvíld, Hringir, Tímamörk, Endurtekningar). "sets" shows
